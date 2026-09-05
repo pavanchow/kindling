@@ -1,0 +1,19 @@
+[package]
+name = "kindling"
+version = "0.1.0"
+edition = "2021"
+description = "A from-scratch dynamically-typed language with a bytecode virtual machine and a mark-and-sweep garbage collector, pure std, zero dependencies."
+license = "MIT"
+repository = "https://github.com/pavanchow/kindling"
+
+[lib]
+name = "kindling"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kindling"
+path = "src/bin/kindling.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
