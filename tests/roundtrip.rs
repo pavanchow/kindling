@@ -52,18 +52,33 @@ fn run_after_binary_round_trip_matches_direct_run() {
         let ops = (seed as usize % 9) + 3;
         let src = random_program(seed, ops);
         let program = compile_source(&src).unwrap();
-
-        let direct = run_program(&program)
-            .unwrap_or_else(|e| panic!("seed {seed}: direct run error {e}"));
-
         let restored = deserialize(&serialize(&program)).unwrap();
-        let after = run_program(&restored)
-            .unwrap_or_else(|e| panic!("seed {seed}: restored run error {e}"));
 
-        assert_eq!(
-            direct.value, after.value,
-            "seed {seed}: serialized run differs from direct run"
-        );
-        assert_eq!(direct.output, after.output, "seed {seed}: output differs");
+        let direct = run_program(&program);
+        let after = run_program(&restored);
+
+        // The round trip must preserve the whole outcome. A widened program may
+        // trap on division by zero; then both runs must trap identically, and a
+        // value on one side with a trap on the other is a round trip defect.
+        match (direct, after) {
+            (Ok(d), Ok(a)) => {
+                assert_eq!(
+                    d.value, a.value,
+                    "seed {seed}: serialized run differs from direct run"
+                );
+                assert_eq!(d.output, a.output, "seed {seed}: output differs");
+            }
+            (Err(d), Err(a)) => {
+                assert_eq!(d, a, "seed {seed}: serialized run trap differs from direct run");
+            }
+            (Ok(d), Err(a)) => panic!(
+                "seed {seed}: direct run produced {:?} but restored run trapped with {a:?}",
+                d.value
+            ),
+            (Err(d), Ok(a)) => panic!(
+                "seed {seed}: direct run trapped with {d:?} but restored run produced {:?}",
+                a.value
+            ),
+        }
     }
 }

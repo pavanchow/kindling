@@ -24,21 +24,40 @@ fn vm_matches_reference_interpreter() {
         let ops = (seed as usize % 9) + 3;
         let src = random_program(seed, ops);
 
-        let vm = run_source(&src)
-            .unwrap_or_else(|e| panic!("seed {seed}: VM error {e}\n--- program ---\n{src}"));
-        let reference = eval_reference(&src).unwrap_or_else(|e| {
-            panic!("seed {seed}: reference error {e}\n--- program ---\n{src}")
-        });
+        let vm = run_source(&src);
+        let reference = eval_reference(&src);
 
-        assert_eq!(
-            vm.value, reference.value,
-            "seed {seed}: value mismatch\nVM={:?} REF={:?}\n--- program ---\n{src}",
-            vm.value, reference.value
-        );
-        assert_eq!(
-            vm.output, reference.output,
-            "seed {seed}: output mismatch\n--- program ---\n{src}"
-        );
+        // The two evaluators must agree on the whole outcome, including whether
+        // the program traps. A widened program may divide by zero, and then both
+        // must return the same runtime error; either one succeeding while the
+        // other traps is a divergence.
+        match (vm, reference) {
+            (Ok(v), Ok(r)) => {
+                assert_eq!(
+                    v.value, r.value,
+                    "seed {seed}: value mismatch\nVM={:?} REF={:?}\n--- program ---\n{src}",
+                    v.value, r.value
+                );
+                assert_eq!(
+                    v.output, r.output,
+                    "seed {seed}: output mismatch\n--- program ---\n{src}"
+                );
+            }
+            (Err(ve), Err(re)) => {
+                assert_eq!(
+                    ve, re,
+                    "seed {seed}: error mismatch\nVM={ve:?} REF={re:?}\n--- program ---\n{src}"
+                );
+            }
+            (Ok(v), Err(re)) => panic!(
+                "seed {seed}: VM produced {:?} but reference trapped with {re:?}\n--- program ---\n{src}",
+                v.value
+            ),
+            (Err(ve), Ok(r)) => panic!(
+                "seed {seed}: VM trapped with {ve:?} but reference produced {:?}\n--- program ---\n{src}",
+                r.value
+            ),
+        }
         checked += 1;
     }
     assert_eq!(checked, count);
