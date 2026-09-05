@@ -1,0 +1,26 @@
+// Kindling sample: recursion, a loop, and closures.
+fn fact(n) {
+  if (n <= 1) { return 1; }
+  return n * fact(n - 1);
+}
+
+fn make_adder(x) {
+  fn adder(n) { return n + x; }
+  return adder;
+}
+
+let add10 = make_adder(10);
+
+let i = 1;
+let sum = 0;
+while (i <= 5) {
+  sum = sum + fact(i);
+  i = i + 1;
+}
+
+print "sum of factorials 1..5:";
+print sum;
+print "add10(32):";
+print add10(32);
+
+return sum + add10(32);

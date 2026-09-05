@@ -1,12 +1,1457 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>kindling</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kindling Playground</title>
+<style>
+  /* Base theme. Light values live here in :root and are consumed by every rule. */
+  :root {
+    --bg: #f5f5f7;
+    --panel: #ffffff;
+    --panel-2: #fbfbfd;
+    --text: #1d1d1f;
+    --muted: #6e6e73;
+    --border: #d2d2d7;
+    --accent: #0071e3;
+    --accent-2: #e8f0fe;
+    --green: #34c759;
+    --green-bg: rgba(52, 199, 89, 0.14);
+    --red: #ff3b30;
+    --red-bg: rgba(255, 59, 48, 0.12);
+    --code: #1d1d1f;
+    --hl: #fff3c4;
+    --shadow: rgba(0, 0, 0, 0.06);
+  }
+
+  * { box-sizing: border-box; }
+
+  /* Base body rule. The dark @media block below MUST come after this. */
+  body {
+    margin: 0;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    padding: 34px 24px 18px;
+    text-align: center;
+  }
+  header h1 {
+    margin: 0 0 6px;
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 16px;
+  }
+  header a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  header a:hover { text-decoration: underline; }
+
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 8px 20px 60px;
+  }
+
+  .howto {
+    background-color: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin: 16px 0 24px;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+  .howto h2 { margin: 0 0 10px; font-size: 20px; font-weight: 600; }
+  .howto ol { margin: 0 0 12px; padding-left: 22px; }
+  .howto li { margin: 4px 0; }
+  .howto p { margin: 0; color: var(--muted); }
+
+  .samples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+    align-items: center;
+  }
+  .samples span { color: var(--muted); font-size: 14px; margin-right: 4px; }
+
+  button {
+    font: inherit;
+    font-size: 14px;
+    border: 1px solid var(--border);
+    background-color: var(--panel);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 980px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, transform 0.05s ease;
+  }
+  button:hover { background-color: var(--accent-2); }
+  button:active { transform: scale(0.97); }
+  button.primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+  }
+  button.primary:hover { background-color: #0062c4; }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background-color: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 1px 3px var(--shadow);
+    overflow: hidden;
+  }
+  .card h3 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 260px;
+    resize: vertical;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13px;
+    background-color: var(--panel-2);
+    color: var(--code);
+    line-height: 1.55;
+    tab-size: 2;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  pre, .mono {
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+    color: var(--code);
+  }
+
+  .panelbox {
+    background-color: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    max-height: 300px;
+    overflow: auto;
+  }
+
+  .tok {
+    display: inline-block;
+    margin: 3px 4px 3px 0;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background-color: var(--accent-2);
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 12px;
+  }
+  .tok b { color: var(--accent); }
+
+  .bcline {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 12.5px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    white-space: pre;
+  }
+  .bcline.active { background-color: var(--hl); color: #1d1d1f; font-weight: 600; }
+  .bchead { color: var(--accent); font-weight: 600; margin: 8px 0 2px; }
+
+  .stackrow, .framerow {
+    display: flex;
+    justify-content: space-between;
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 12.5px;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 3px 0;
+    background-color: var(--panel);
+  }
+  .stackrow.top { border-color: var(--accent); background-color: var(--accent-2); }
+  .framerow.current { border-color: var(--accent); background-color: var(--accent-2); }
+  .slabel { color: var(--muted); }
+
+  .result {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .output-line { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 12.5px; }
+  .errmsg { color: var(--red); font-weight: 600; }
+
+  .ipnote { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+
+  .heap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .obj {
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    min-width: 96px;
+    background-color: var(--panel-2);
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 12px;
+    transition: all 0.25s ease;
+  }
+  .obj .kind { display: block; color: var(--muted); font-size: 10px; letter-spacing: 0.06em; }
+  .obj.marked { border-color: var(--green); background-color: var(--green-bg); }
+  .obj.swept { border-color: var(--red); background-color: var(--red-bg); opacity: 0.45; text-decoration: line-through; }
+  .obj.root { box-shadow: 0 0 0 2px var(--accent) inset; }
+  .gcstat { color: var(--muted); font-size: 12px; }
+
+  .full { grid-column: 1 / -1; }
+
+  /*
+    DARK MODE CASCADE. This block is placed AFTER the base body rule on purpose.
+    We re-declare BOTH the CSS variables AND the body background-color and color
+    here. Redefining only the variables is not enough because some Chrome builds
+    keep painting the base body colors, which yields dark text on a white page.
+    The explicit body override below guarantees a correct dark surface.
+  */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --panel: #1c1c1e;
+      --panel-2: #161618;
+      --text: #f5f5f7;
+      --muted: #98989d;
+      --border: #38383a;
+      --accent: #0a84ff;
+      --accent-2: #10233b;
+      --green: #30d158;
+      --green-bg: rgba(48, 209, 88, 0.18);
+      --red: #ff453a;
+      --red-bg: rgba(255, 69, 58, 0.18);
+      --code: #f5f5f7;
+      --hl: #5c4a00;
+      --shadow: rgba(0, 0, 0, 0.5);
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+    }
+    .bcline.active { color: #ffffff; }
+  }
+</style>
 </head>
 <body>
-<h1>kindling</h1>
-<p>Site coming soon.</p>
-<p><a href="https://github.com/pavanchow/kindling">View repository</a></p>
+<header>
+  <h1>Kindling Playground</h1>
+  <p>A from scratch bytecode language, lexed, parsed, compiled, and run right in the page. Source at <a href="https://github.com/pavanchow/kindling" target="_blank" rel="noopener">github.com/pavanchow/kindling</a></p>
+</header>
+
+<main>
+  <section class="howto">
+    <h2>How to use this playground</h2>
+    <ol>
+      <li>Type a program in the editor, or pick one of the sample buttons to load it.</li>
+      <li>Press Run to lex, parse, compile, and execute the whole program at once.</li>
+      <li>Read the Tokens panel to see the raw token stream from the lexer.</li>
+      <li>Read the AST panel to see the parsed tree, then read the Bytecode panel to see the compiled instructions with offsets and operands.</li>
+      <li>Check the Result panel for the program value and any printed output.</li>
+      <li>Press Step to run the virtual machine one instruction at a time. Watch the value stack and the call frames update, and follow the highlighted current instruction.</li>
+      <li>Press Run GC to allocate demo heap objects, mark everything reachable from the roots in green, then sweep the unreachable objects in red.</li>
+    </ol>
+    <p>A quick tour. Kindling turns your text into tokens, then into a tree, then into a stack machine program. Run gives you the fast answer. Step is the slow motion view where you can see each push and pop as the machine works. Run GC shows how a mark and sweep collector keeps live objects and frees the rest.</p>
+  </section>
+
+  <div class="samples">
+    <span>Samples</span>
+    <button data-sample="while">While loop sum</button>
+    <button data-sample="fn">Function params</button>
+    <button data-sample="fact">Recursive factorial</button>
+  </div>
+
+  <div class="card full">
+    <h3>Source editor</h3>
+    <textarea id="editor" spellcheck="false"></textarea>
+    <div class="toolbar">
+      <button class="primary" id="runBtn">Run</button>
+      <button id="stepBtn">Step</button>
+      <button id="resetBtn">Reset VM</button>
+      <button id="gcBtn">Run GC</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Tokens</h3>
+      <div class="panelbox" id="tokensOut"></div>
+    </div>
+    <div class="card">
+      <h3>AST</h3>
+      <div class="panelbox"><pre id="astOut"></pre></div>
+    </div>
+    <div class="card">
+      <h3>Bytecode</h3>
+      <div class="panelbox" id="bcOut"></div>
+    </div>
+    <div class="card">
+      <h3>Run / Result</h3>
+      <div class="panelbox">
+        <div class="result" id="resultOut">Not run yet.</div>
+        <div id="outputOut" style="margin-top:10px"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Step: value stack</h3>
+      <p class="ipnote" id="ipOut">VM not started.</p>
+      <div class="panelbox" id="stackOut"></div>
+    </div>
+    <div class="card">
+      <h3>Step: call frames</h3>
+      <div class="panelbox" id="framesOut"></div>
+    </div>
+    <div class="card full">
+      <h3>Garbage collector: heap</h3>
+      <div class="panelbox">
+        <div class="heap" id="heapOut"></div>
+        <div class="gcstat" id="gcStat">Run a program, then press Run GC to mark and sweep.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- runtime value helpers ----------
+  function KFloat(v) { this.value = v; }
+  function isFloat(v) { return v instanceof KFloat; }
+  function asNum(v) { return v instanceof KFloat ? v.value : v; }
+  function isNumeric(v) { return typeof v === "number" || v instanceof KFloat; }
+  function isTruthy(v) { return !(v === null || v === false); }
+
+  function valuesEqual(a, b) {
+    if (isNumeric(a) && isNumeric(b)) return asNum(a) === asNum(b);
+    return a === b;
+  }
+
+  function valueToStr(v) {
+    if (v === null) return "nil";
+    if (v === true) return "true";
+    if (v === false) return "false";
+    if (v instanceof KFloat) {
+      var n = v.value;
+      if (Number.isInteger(n)) return n.toFixed(1);
+      return String(n);
+    }
+    if (typeof v === "number") return String(v);
+    if (typeof v === "string") return '"' + v + '"';
+    if (v && v.fn) return "<fn " + v.fn.name + ">";
+    if (v && v.chunk) return "<fn " + v.name + ">";
+    return String(v);
+  }
+  function valueToStrRaw(v) {
+    if (typeof v === "string") return v;
+    return valueToStr(v);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ---------- lexer ----------
+  var KEYWORDS = {
+    "let": "LET", "fn": "FN", "if": "IF", "else": "ELSE", "while": "WHILE",
+    "return": "RETURN", "print": "PRINT", "true": "TRUE", "false": "FALSE", "nil": "NIL"
+  };
+
+  function lex(src) {
+    var tokens = [];
+    var i = 0, line = 1;
+    var n = src.length;
+    function push(type, lexeme) { tokens.push({ type: type, lexeme: lexeme, line: line }); }
+    while (i < n) {
+      var c = src[i];
+      if (c === "\n") { line++; i++; continue; }
+      if (c === " " || c === "\t" || c === "\r") { i++; continue; }
+      if (c === "/" && src[i + 1] === "/") {
+        while (i < n && src[i] !== "\n") i++;
+        continue;
+      }
+      if (c >= "0" && c <= "9") {
+        var start = i;
+        while (i < n && src[i] >= "0" && src[i] <= "9") i++;
+        var isF = false;
+        if (src[i] === "." && src[i + 1] >= "0" && src[i + 1] <= "9") {
+          isF = true; i++;
+          while (i < n && src[i] >= "0" && src[i] <= "9") i++;
+        }
+        var num = src.slice(start, i);
+        push(isF ? "FLOAT" : "INT", num);
+        continue;
+      }
+      if (c === '"') {
+        i++;
+        var s = "";
+        while (i < n && src[i] !== '"') {
+          if (src[i] === "\n") line++;
+          s += src[i]; i++;
+        }
+        if (i >= n) throw { message: "Unterminated string on line " + line };
+        i++;
+        push("STRING", s);
+        continue;
+      }
+      if (/[A-Za-z_]/.test(c)) {
+        var st = i;
+        while (i < n && /[A-Za-z0-9_]/.test(src[i])) i++;
+        var word = src.slice(st, i);
+        push(KEYWORDS[word] || "IDENT", word);
+        continue;
+      }
+      // operators
+      var two = src.slice(i, i + 2);
+      if (two === "==") { push("EQEQ", two); i += 2; continue; }
+      if (two === "!=") { push("BANGEQ", two); i += 2; continue; }
+      if (two === "<=") { push("LE", two); i += 2; continue; }
+      if (two === ">=") { push("GE", two); i += 2; continue; }
+      switch (c) {
+        case "+": push("PLUS", c); break;
+        case "-": push("MINUS", c); break;
+        case "*": push("STAR", c); break;
+        case "/": push("SLASH", c); break;
+        case "%": push("PERCENT", c); break;
+        case "!": push("BANG", c); break;
+        case "=": push("EQ", c); break;
+        case "<": push("LT", c); break;
+        case ">": push("GT", c); break;
+        case "(": push("LPAREN", c); break;
+        case ")": push("RPAREN", c); break;
+        case "{": push("LBRACE", c); break;
+        case "}": push("RBRACE", c); break;
+        case ",": push("COMMA", c); break;
+        case ";": push("SEMI", c); break;
+        default: throw { message: "Unexpected character '" + c + "' on line " + line };
+      }
+      i++;
+    }
+    push("EOF", "");
+    return tokens;
+  }
+
+  // ---------- parser ----------
+  function Parser(tokens) {
+    this.tokens = tokens;
+    this.pos = 0;
+  }
+  Parser.prototype.peek = function () { return this.tokens[this.pos]; };
+  Parser.prototype.check = function (t) { return this.peek().type === t; };
+  Parser.prototype.advance = function () { return this.tokens[this.pos++]; };
+  Parser.prototype.match = function (t) {
+    if (this.check(t)) { this.pos++; return true; }
+    return false;
+  };
+  Parser.prototype.consume = function (t, msg) {
+    if (this.check(t)) return this.advance();
+    throw { message: msg + " (got '" + this.peek().lexeme + "' on line " + this.peek().line + ")" };
+  };
+
+  Parser.prototype.parseProgram = function () {
+    var stmts = [];
+    while (!this.check("EOF")) stmts.push(this.statement());
+    return { node: "Program", statements: stmts };
+  };
+
+  Parser.prototype.block = function () {
+    this.consume("LBRACE", "Expected '{'");
+    var stmts = [];
+    while (!this.check("RBRACE") && !this.check("EOF")) stmts.push(this.statement());
+    this.consume("RBRACE", "Expected '}'");
+    return stmts;
+  };
+
+  Parser.prototype.statement = function () {
+    if (this.check("LET")) return this.letDecl();
+    if (this.check("FN")) return this.fnDecl();
+    if (this.check("IF")) return this.ifStmt();
+    if (this.check("WHILE")) return this.whileStmt();
+    if (this.check("RETURN")) return this.returnStmt();
+    if (this.check("PRINT")) return this.printStmt();
+    return this.exprStmt();
+  };
+
+  Parser.prototype.letDecl = function () {
+    this.advance();
+    var name = this.consume("IDENT", "Expected variable name").lexeme;
+    this.consume("EQ", "Expected '=' in let");
+    var expr = this.expression();
+    this.consume("SEMI", "Expected ';' after let");
+    return { node: "LetStmt", name: name, expr: expr };
+  };
+
+  Parser.prototype.fnDecl = function () {
+    this.advance();
+    var name = this.consume("IDENT", "Expected function name").lexeme;
+    this.consume("LPAREN", "Expected '(' after function name");
+    var params = [];
+    if (!this.check("RPAREN")) {
+      do { params.push(this.consume("IDENT", "Expected parameter name").lexeme); }
+      while (this.match("COMMA"));
+    }
+    this.consume("RPAREN", "Expected ')' after parameters");
+    var body = this.block();
+    return { node: "FnDecl", name: name, params: params, body: body };
+  };
+
+  Parser.prototype.ifStmt = function () {
+    this.advance();
+    this.consume("LPAREN", "Expected '(' after if");
+    var cond = this.expression();
+    this.consume("RPAREN", "Expected ')' after condition");
+    var thenB = this.block();
+    var elseB = null;
+    if (this.match("ELSE")) {
+      if (this.check("IF")) elseB = [this.ifStmt()];
+      else elseB = this.block();
+    }
+    return { node: "IfStmt", cond: cond, thenB: thenB, elseB: elseB };
+  };
+
+  Parser.prototype.whileStmt = function () {
+    this.advance();
+    this.consume("LPAREN", "Expected '(' after while");
+    var cond = this.expression();
+    this.consume("RPAREN", "Expected ')' after condition");
+    var body = this.block();
+    return { node: "WhileStmt", cond: cond, body: body };
+  };
+
+  Parser.prototype.returnStmt = function () {
+    this.advance();
+    var expr = null;
+    if (!this.check("SEMI")) expr = this.expression();
+    this.consume("SEMI", "Expected ';' after return");
+    return { node: "ReturnStmt", expr: expr };
+  };
+
+  Parser.prototype.printStmt = function () {
+    this.advance();
+    var expr = this.expression();
+    this.consume("SEMI", "Expected ';' after print");
+    return { node: "PrintStmt", expr: expr };
+  };
+
+  Parser.prototype.exprStmt = function () {
+    var expr = this.expression();
+    this.consume("SEMI", "Expected ';' after expression");
+    return { node: "ExprStmt", expr: expr };
+  };
+
+  // expression precedence
+  Parser.prototype.expression = function () { return this.assignment(); };
+
+  Parser.prototype.assignment = function () {
+    var left = this.equality();
+    if (this.match("EQ")) {
+      var value = this.assignment();
+      if (left.node !== "Identifier") throw { message: "Invalid assignment target" };
+      return { node: "Assign", name: left.name, value: value };
+    }
+    return left;
+  };
+
+  Parser.prototype.equality = function () {
+    var e = this.comparison();
+    while (this.check("EQEQ") || this.check("BANGEQ")) {
+      var op = this.advance().type;
+      var r = this.comparison();
+      e = { node: "Binary", op: op, left: e, right: r };
+    }
+    return e;
+  };
+
+  Parser.prototype.comparison = function () {
+    var e = this.term();
+    while (this.check("LT") || this.check("LE") || this.check("GT") || this.check("GE")) {
+      var op = this.advance().type;
+      var r = this.term();
+      e = { node: "Binary", op: op, left: e, right: r };
+    }
+    return e;
+  };
+
+  Parser.prototype.term = function () {
+    var e = this.factor();
+    while (this.check("PLUS") || this.check("MINUS")) {
+      var op = this.advance().type;
+      var r = this.factor();
+      e = { node: "Binary", op: op, left: e, right: r };
+    }
+    return e;
+  };
+
+  Parser.prototype.factor = function () {
+    var e = this.unary();
+    while (this.check("STAR") || this.check("SLASH") || this.check("PERCENT")) {
+      var op = this.advance().type;
+      var r = this.unary();
+      e = { node: "Binary", op: op, left: e, right: r };
+    }
+    return e;
+  };
+
+  Parser.prototype.unary = function () {
+    if (this.check("MINUS") || this.check("BANG")) {
+      var op = this.advance().type;
+      var right = this.unary();
+      return { node: "Unary", op: op, operand: right };
+    }
+    return this.call();
+  };
+
+  Parser.prototype.call = function () {
+    var e = this.primary();
+    while (this.match("LPAREN")) {
+      var args = [];
+      if (!this.check("RPAREN")) {
+        do { args.push(this.expression()); } while (this.match("COMMA"));
+      }
+      this.consume("RPAREN", "Expected ')' after arguments");
+      e = { node: "Call", callee: e, args: args };
+    }
+    return e;
+  };
+
+  Parser.prototype.primary = function () {
+    var t = this.peek();
+    if (this.match("INT")) return { node: "Literal", valueType: "int", value: parseInt(t.lexeme, 10) };
+    if (this.match("FLOAT")) return { node: "Literal", valueType: "float", value: parseFloat(t.lexeme) };
+    if (this.match("STRING")) return { node: "Literal", valueType: "string", value: t.lexeme };
+    if (this.match("TRUE")) return { node: "Literal", valueType: "bool", value: true };
+    if (this.match("FALSE")) return { node: "Literal", valueType: "bool", value: false };
+    if (this.match("NIL")) return { node: "Literal", valueType: "nil", value: null };
+    if (this.match("IDENT")) return { node: "Identifier", name: t.lexeme };
+    if (this.match("LPAREN")) {
+      var e = this.expression();
+      this.consume("RPAREN", "Expected ')'");
+      return e;
+    }
+    throw { message: "Unexpected token '" + t.lexeme + "' on line " + t.line };
+  };
+
+  // ---------- AST pretty printer ----------
+  function astToText(node, depth) {
+    var pad = "  ".repeat(depth);
+    if (node.node === "Program") {
+      return "Program\n" + node.statements.map(function (s) { return astToText(s, depth + 1); }).join("\n");
+    }
+    switch (node.node) {
+      case "LetStmt":
+        return pad + "Let " + node.name + "\n" + astToText(node.expr, depth + 1);
+      case "FnDecl":
+        return pad + "Fn " + node.name + "(" + node.params.join(", ") + ")\n" +
+          node.body.map(function (s) { return astToText(s, depth + 1); }).join("\n");
+      case "IfStmt":
+        var s = pad + "If\n" + pad + "  cond:\n" + astToText(node.cond, depth + 2) +
+          "\n" + pad + "  then:\n" + node.thenB.map(function (x) { return astToText(x, depth + 2); }).join("\n");
+        if (node.elseB) s += "\n" + pad + "  else:\n" + node.elseB.map(function (x) { return astToText(x, depth + 2); }).join("\n");
+        return s;
+      case "WhileStmt":
+        return pad + "While\n" + pad + "  cond:\n" + astToText(node.cond, depth + 2) +
+          "\n" + pad + "  body:\n" + node.body.map(function (x) { return astToText(x, depth + 2); }).join("\n");
+      case "ReturnStmt":
+        return pad + "Return" + (node.expr ? "\n" + astToText(node.expr, depth + 1) : " (nil)");
+      case "PrintStmt":
+        return pad + "Print\n" + astToText(node.expr, depth + 1);
+      case "ExprStmt":
+        return pad + "ExprStmt\n" + astToText(node.expr, depth + 1);
+      case "Assign":
+        return pad + "Assign " + node.name + "\n" + astToText(node.value, depth + 1);
+      case "Binary":
+        return pad + "Binary " + node.op + "\n" + astToText(node.left, depth + 1) + "\n" + astToText(node.right, depth + 1);
+      case "Unary":
+        return pad + "Unary " + node.op + "\n" + astToText(node.operand, depth + 1);
+      case "Call":
+        return pad + "Call\n" + pad + "  callee:\n" + astToText(node.callee, depth + 2) +
+          (node.args.length ? "\n" + pad + "  args:\n" + node.args.map(function (a) { return astToText(a, depth + 2); }).join("\n") : "");
+      case "Literal":
+        return pad + "Literal " + node.valueType + " " + (node.valueType === "string" ? '"' + node.value + '"' : node.value);
+      case "Identifier":
+        return pad + "Identifier " + node.name;
+      default:
+        return pad + "?";
+    }
+  }
+
+  // ---------- compiler (clox style) ----------
+  var chunkIdCounter = 0;
+  var allFunctions = [];
+  var current = null;
+
+  function newCompiler(name, enclosing) {
+    var comp = {
+      enclosing: enclosing,
+      fn: {
+        name: name,
+        arity: 0,
+        upvalueDescriptors: [],
+        chunk: { id: chunkIdCounter++, name: name, code: [], constants: [] }
+      },
+      locals: [{ name: "", depth: 0 }],
+      upvalues: [],
+      scopeDepth: 0
+    };
+    allFunctions.push(comp.fn);
+    return comp;
+  }
+
+  function currentChunk() { return current.fn.chunk; }
+  function emit(op) {
+    var operands = Array.prototype.slice.call(arguments, 1);
+    currentChunk().code.push({ op: op, operands: operands });
+    return currentChunk().code.length - 1;
+  }
+  function addConstant(value) {
+    currentChunk().constants.push(value);
+    return currentChunk().constants.length - 1;
+  }
+  function identifierConstant(name) { return addConstant(name); }
+
+  function isGlobalScope() { return current.enclosing === null && current.scopeDepth === 0; }
+
+  function beginScope() { current.scopeDepth++; }
+  function endScope() {
+    current.scopeDepth--;
+    while (current.locals.length > 0 && current.locals[current.locals.length - 1].depth > current.scopeDepth) {
+      emit("POP");
+      current.locals.pop();
+    }
+  }
+  function declareLocal(name) {
+    current.locals.push({ name: name, depth: current.scopeDepth });
+  }
+
+  function resolveLocal(comp, name) {
+    for (var i = comp.locals.length - 1; i >= 0; i--) {
+      if (comp.locals[i].name === name) return i;
+    }
+    return -1;
+  }
+  function addUpvalue(comp, index, isLocal) {
+    for (var i = 0; i < comp.upvalues.length; i++) {
+      if (comp.upvalues[i].index === index && comp.upvalues[i].isLocal === isLocal) return i;
+    }
+    comp.upvalues.push({ index: index, isLocal: isLocal });
+    comp.fn.upvalueDescriptors.push({ index: index, isLocal: isLocal });
+    return comp.upvalues.length - 1;
+  }
+  function resolveUpvalue(comp, name) {
+    if (!comp.enclosing) return -1;
+    var local = resolveLocal(comp.enclosing, name);
+    if (local !== -1) return addUpvalue(comp, local, true);
+    var up = resolveUpvalue(comp.enclosing, name);
+    if (up !== -1) return addUpvalue(comp, up, false);
+    return -1;
+  }
+
+  function resolveName(name) {
+    var arg = resolveLocal(current, name);
+    if (arg !== -1) return { kind: "LOCAL", arg: arg };
+    arg = resolveUpvalue(current, name);
+    if (arg !== -1) return { kind: "UPVALUE", arg: arg };
+    return { kind: "GLOBAL", arg: identifierConstant(name) };
+  }
+
+  function compileBodyWithResult(stmts) {
+    if (stmts.length === 0) { emit("NIL"); emit("RETURN"); return; }
+    for (var i = 0; i < stmts.length - 1; i++) compileStatement(stmts[i]);
+    var last = stmts[stmts.length - 1];
+    if (last.node === "ExprStmt") {
+      compileExpr(last.expr);
+      emit("RETURN");
+    } else {
+      compileStatement(last);
+      emit("NIL");
+      emit("RETURN");
+    }
+  }
+
+  function compileStatements(stmts) {
+    for (var i = 0; i < stmts.length; i++) compileStatement(stmts[i]);
+  }
+
+  function compileStatement(node) {
+    switch (node.node) {
+      case "LetStmt": {
+        compileExpr(node.expr);
+        if (isGlobalScope()) {
+          var g = identifierConstant(node.name);
+          emit("DEF_GLOBAL", g);
+        } else {
+          declareLocal(node.name);
+        }
+        break;
+      }
+      case "FnDecl": {
+        if (isGlobalScope()) {
+          var nameConst = identifierConstant(node.name);
+          compileFunction(node.name, node.params, node.body);
+          emit("DEF_GLOBAL", nameConst);
+        } else {
+          declareLocal(node.name);
+          compileFunction(node.name, node.params, node.body);
+        }
+        break;
+      }
+      case "IfStmt": {
+        compileExpr(node.cond);
+        var thenJump = emit("JUMP_IF_FALSE", 0);
+        emit("POP");
+        beginScope(); compileStatements(node.thenB); endScope();
+        var elseJump = emit("JUMP", 0);
+        patchJump(thenJump);
+        emit("POP");
+        if (node.elseB) { beginScope(); compileStatements(node.elseB); endScope(); }
+        patchJump(elseJump);
+        break;
+      }
+      case "WhileStmt": {
+        var loopStart = currentChunk().code.length;
+        compileExpr(node.cond);
+        var exitJump = emit("JUMP_IF_FALSE", 0);
+        emit("POP");
+        beginScope(); compileStatements(node.body); endScope();
+        emitLoop(loopStart);
+        patchJump(exitJump);
+        emit("POP");
+        break;
+      }
+      case "ReturnStmt": {
+        if (node.expr) compileExpr(node.expr); else emit("NIL");
+        emit("RETURN");
+        break;
+      }
+      case "PrintStmt": {
+        compileExpr(node.expr);
+        emit("PRINT");
+        break;
+      }
+      case "ExprStmt": {
+        compileExpr(node.expr);
+        emit("POP");
+        break;
+      }
+      default:
+        throw { message: "Cannot compile statement " + node.node };
+    }
+  }
+
+  function patchJump(index) {
+    var offset = currentChunk().code.length - index - 1;
+    currentChunk().code[index].operands[0] = offset;
+  }
+  function emitLoop(loopStart) {
+    var offset = currentChunk().code.length - loopStart + 1;
+    emit("LOOP", offset);
+  }
+
+  function compileFunction(name, params, body) {
+    var enclosing = current;
+    current = newCompiler(name, enclosing);
+    current.fn.arity = params.length;
+    for (var i = 0; i < params.length; i++) declareLocal(params[i]);
+    compileBodyWithResult(body);
+    var fn = current.fn;
+    current = enclosing;
+    var ci = addConstant(fn);
+    emit("CLOSURE", ci);
+  }
+
+  function compileExpr(node) {
+    switch (node.node) {
+      case "Literal": {
+        if (node.valueType === "int") emit("CONST", addConstant(node.value));
+        else if (node.valueType === "float") emit("CONST", addConstant(new KFloat(node.value)));
+        else if (node.valueType === "string") emit("CONST", addConstant(node.value));
+        else if (node.valueType === "bool") emit(node.value ? "TRUE" : "FALSE");
+        else emit("NIL");
+        break;
+      }
+      case "Identifier": {
+        var r = resolveName(node.name);
+        emit("GET_" + r.kind, r.arg);
+        break;
+      }
+      case "Assign": {
+        compileExpr(node.value);
+        var rs = resolveName(node.name);
+        emit("SET_" + rs.kind, rs.arg);
+        break;
+      }
+      case "Unary": {
+        compileExpr(node.operand);
+        emit(node.op === "MINUS" ? "NEG" : "NOT");
+        break;
+      }
+      case "Binary": {
+        compileExpr(node.left);
+        compileExpr(node.right);
+        var map = {
+          PLUS: "ADD", MINUS: "SUB", STAR: "MUL", SLASH: "DIV", PERCENT: "MOD",
+          EQEQ: "EQ", BANGEQ: "NEQ", LT: "LT", LE: "LE", GT: "GT", GE: "GE"
+        };
+        emit(map[node.op]);
+        break;
+      }
+      case "Call": {
+        compileExpr(node.callee);
+        for (var i = 0; i < node.args.length; i++) compileExpr(node.args[i]);
+        emit("CALL", node.args.length);
+        break;
+      }
+      default:
+        throw { message: "Cannot compile expression " + node.node };
+    }
+  }
+
+  function compile(ast) {
+    chunkIdCounter = 0;
+    allFunctions = [];
+    current = newCompiler("main", null);
+    compileBodyWithResult(ast.statements);
+    var mainFn = current.fn;
+    current = null;
+    return { mainFn: mainFn, allFunctions: allFunctions.slice() };
+  }
+
+  // ---------- disassembler ----------
+  function disassemble(compiled) {
+    var html = "";
+    compiled.allFunctions.forEach(function (fn) {
+      var chunk = fn.chunk;
+      html += '<div class="bchead">fn ' + escapeHtml(fn.name) + ' (arity ' + fn.arity + ')</div>';
+      chunk.code.forEach(function (ins, idx) {
+        var line = String(idx).padStart(4, "0") + "  " + ins.op.padEnd(14, " ");
+        var ann = "";
+        var op = ins.op;
+        var a = ins.operands[0];
+        if (op === "CONST") ann = a + "  (" + valueToStr(chunk.constants[a]) + ")";
+        else if (op === "DEF_GLOBAL" || op === "GET_GLOBAL" || op === "SET_GLOBAL") ann = a + "  '" + chunk.constants[a] + "'";
+        else if (op === "GET_LOCAL" || op === "SET_LOCAL") ann = "slot " + a;
+        else if (op === "GET_UPVALUE" || op === "SET_UPVALUE") ann = "upval " + a;
+        else if (op === "CALL") ann = a + " args";
+        else if (op === "CLOSURE") ann = a + "  (fn " + chunk.constants[a].name + ")";
+        else if (op === "JUMP" || op === "JUMP_IF_FALSE") ann = a + "  -> " + (idx + 1 + a);
+        else if (op === "LOOP") ann = a + "  -> " + (idx + 1 - a);
+        html += '<div class="bcline" id="bc-' + chunk.id + "-" + idx + '">' + escapeHtml(line + ann) + '</div>';
+      });
+    });
+    return html;
+  }
+
+  // ---------- virtual machine ----------
+  var vm = null;
+
+  function makeClosure(fn) { return { fn: fn, upvalues: [] }; }
+
+  function initVM(mainFn) {
+    var mainClosure = makeClosure(mainFn);
+    vm = {
+      stack: [mainClosure],
+      frames: [{ closure: mainClosure, ip: 0, slotBase: 0 }],
+      globals: {},
+      openUpvalues: [],
+      output: [],
+      result: null,
+      done: false,
+      error: null,
+      steps: 0
+    };
+  }
+
+  function push(v) { vm.stack.push(v); }
+  function pop() { return vm.stack.pop(); }
+  function peek(d) { return vm.stack[vm.stack.length - 1 - d]; }
+
+  function captureUpvalue(stackIndex) {
+    for (var i = 0; i < vm.openUpvalues.length; i++) {
+      if (vm.openUpvalues[i].stackIndex === stackIndex) return vm.openUpvalues[i];
+    }
+    var uv = { stackIndex: stackIndex, closed: false, value: null };
+    vm.openUpvalues.push(uv);
+    return uv;
+  }
+  function closeUpvalues(from) {
+    var remaining = [];
+    for (var i = 0; i < vm.openUpvalues.length; i++) {
+      var uv = vm.openUpvalues[i];
+      if (uv.stackIndex >= from) { uv.closed = true; uv.value = vm.stack[uv.stackIndex]; }
+      else remaining.push(uv);
+    }
+    vm.openUpvalues = remaining;
+  }
+
+  function runtimeError(msg) { throw { message: msg }; }
+
+  function numericBinary(op) {
+    var b = pop(), a = pop();
+    if (op === "ADD" && typeof a === "string" && typeof b === "string") { push(a + b); return; }
+    if (!isNumeric(a) || !isNumeric(b)) runtimeError("Operands must be numbers for " + op);
+    var x = asNum(a), y = asNum(b);
+    var fl = isFloat(a) || isFloat(b);
+    var r;
+    switch (op) {
+      case "ADD": r = x + y; break;
+      case "SUB": r = x - y; break;
+      case "MUL": r = x * y; break;
+      case "DIV":
+        if (y === 0) runtimeError("Division by zero");
+        r = fl ? x / y : Math.trunc(x / y);
+        push(fl ? new KFloat(r) : r); return;
+      case "MOD":
+        if (y === 0) runtimeError("Division by zero");
+        r = x % y;
+        push(fl ? new KFloat(r) : r); return;
+    }
+    push(fl ? new KFloat(r) : r);
+  }
+
+  function compareBinary(op) {
+    var b = pop(), a = pop();
+    if (!isNumeric(a) || !isNumeric(b)) runtimeError("Operands must be numbers for comparison");
+    var x = asNum(a), y = asNum(b);
+    var r;
+    switch (op) {
+      case "LT": r = x < y; break;
+      case "LE": r = x <= y; break;
+      case "GT": r = x > y; break;
+      case "GE": r = x >= y; break;
+    }
+    push(r);
+  }
+
+  function executeOne() {
+    if (vm.done || vm.error) return;
+    var frame = vm.frames[vm.frames.length - 1];
+    var chunk = frame.closure.fn.chunk;
+    if (frame.ip >= chunk.code.length) { runtimeError("Instruction pointer out of range"); }
+    var ins = chunk.code[frame.ip];
+    frame.ip++;
+    var op = ins.op;
+    var a = ins.operands[0];
+    var consts = chunk.constants;
+
+    switch (op) {
+      case "CONST": push(consts[a]); break;
+      case "NIL": push(null); break;
+      case "TRUE": push(true); break;
+      case "FALSE": push(false); break;
+      case "POP": pop(); break;
+      case "NEG": {
+        var v = pop();
+        if (!isNumeric(v)) runtimeError("Operand must be a number for negation");
+        if (isFloat(v)) push(new KFloat(-v.value)); else push(-v);
+        break;
+      }
+      case "NOT": push(!isTruthy(pop())); break;
+      case "ADD": case "SUB": case "MUL": case "DIV": case "MOD": numericBinary(op); break;
+      case "EQ": { var b1 = pop(), a1 = pop(); push(valuesEqual(a1, b1)); break; }
+      case "NEQ": { var b2 = pop(), a2 = pop(); push(!valuesEqual(a2, b2)); break; }
+      case "LT": case "LE": case "GT": case "GE": compareBinary(op); break;
+      case "DEF_GLOBAL": { vm.globals[consts[a]] = peek(0); pop(); break; }
+      case "GET_GLOBAL": {
+        var gname = consts[a];
+        if (!(gname in vm.globals)) runtimeError("Undefined variable '" + gname + "'");
+        push(vm.globals[gname]);
+        break;
+      }
+      case "SET_GLOBAL": {
+        var sname = consts[a];
+        if (!(sname in vm.globals)) runtimeError("Undefined variable '" + sname + "'");
+        vm.globals[sname] = peek(0);
+        break;
+      }
+      case "GET_LOCAL": push(vm.stack[frame.slotBase + a]); break;
+      case "SET_LOCAL": vm.stack[frame.slotBase + a] = peek(0); break;
+      case "GET_UPVALUE": {
+        var uv = frame.closure.upvalues[a];
+        push(uv.closed ? uv.value : vm.stack[uv.stackIndex]);
+        break;
+      }
+      case "SET_UPVALUE": {
+        var uv2 = frame.closure.upvalues[a];
+        if (uv2.closed) uv2.value = peek(0); else vm.stack[uv2.stackIndex] = peek(0);
+        break;
+      }
+      case "JUMP": frame.ip += a; break;
+      case "JUMP_IF_FALSE": if (!isTruthy(peek(0))) frame.ip += a; break;
+      case "LOOP": frame.ip -= a; break;
+      case "PRINT": { var pv = pop(); vm.output.push(valueToStrRaw(pv)); break; }
+      case "CLOSURE": {
+        var fn = consts[a];
+        var closure = makeClosure(fn);
+        for (var u = 0; u < fn.upvalueDescriptors.length; u++) {
+          var d = fn.upvalueDescriptors[u];
+          if (d.isLocal) closure.upvalues.push(captureUpvalue(frame.slotBase + d.index));
+          else closure.upvalues.push(frame.closure.upvalues[d.index]);
+        }
+        push(closure);
+        break;
+      }
+      case "CALL": {
+        var argc = a;
+        var callee = peek(argc);
+        if (!callee || !callee.fn) runtimeError("Can only call functions");
+        if (argc !== callee.fn.arity) runtimeError("Expected " + callee.fn.arity + " arguments but got " + argc);
+        var slotBase = vm.stack.length - argc - 1;
+        vm.frames.push({ closure: callee, ip: 0, slotBase: slotBase });
+        break;
+      }
+      case "RETURN": {
+        var result = pop();
+        closeUpvalues(frame.slotBase);
+        vm.frames.pop();
+        if (vm.frames.length === 0) {
+          vm.result = result;
+          vm.done = true;
+        } else {
+          vm.stack.length = frame.slotBase;
+          push(result);
+        }
+        break;
+      }
+      default:
+        runtimeError("Unknown opcode " + op);
+    }
+  }
+
+  function runToCompletion() {
+    var guard = 0;
+    while (!vm.done && !vm.error) {
+      try { executeOne(); }
+      catch (e) { vm.error = e.message || String(e); break; }
+      guard++;
+      if (guard > 2000000) { vm.error = "Execution limit reached (possible infinite loop)"; break; }
+    }
+  }
+
+  // ---------- DOM refs ----------
+  var editor = document.getElementById("editor");
+  var tokensOut = document.getElementById("tokensOut");
+  var astOut = document.getElementById("astOut");
+  var bcOut = document.getElementById("bcOut");
+  var resultOut = document.getElementById("resultOut");
+  var outputOut = document.getElementById("outputOut");
+  var stackOut = document.getElementById("stackOut");
+  var framesOut = document.getElementById("framesOut");
+  var ipOut = document.getElementById("ipOut");
+  var heapOut = document.getElementById("heapOut");
+  var gcStat = document.getElementById("gcStat");
+
+  var compiled = null;
+  var lastSource = null;
+  var activeBcId = null;
+  var gcObjects = [];
+
+  // ---------- pipeline rendering ----------
+  function renderTokens(tokens) {
+    var html = "";
+    tokens.forEach(function (t) {
+      if (t.type === "EOF") { html += '<span class="tok"><b>EOF</b></span>'; return; }
+      html += '<span class="tok"><b>' + t.type + "</b> " + escapeHtml(t.lexeme) + "</span>";
+    });
+    tokensOut.innerHTML = html;
+  }
+
+  function compilePipeline() {
+    var src = editor.value;
+    var tokens = lex(src);
+    renderTokens(tokens);
+    var ast = new Parser(tokens).parseProgram();
+    astOut.textContent = astToText(ast, 0);
+    compiled = compile(ast);
+    bcOut.innerHTML = disassemble(compiled);
+    lastSource = src;
+    return compiled;
+  }
+
+  function renderOutput() {
+    if (vm.output.length === 0) { outputOut.innerHTML = ""; return; }
+    outputOut.innerHTML = "<div class='slabel'>Printed output</div>" +
+      vm.output.map(function (l) { return '<div class="output-line">' + escapeHtml(l) + "</div>"; }).join("");
+  }
+
+  function renderStep() {
+    // stack
+    if (vm.stack.length === 0) stackOut.innerHTML = "<div class='slabel'>empty</div>";
+    else {
+      var html = "";
+      for (var i = vm.stack.length - 1; i >= 0; i--) {
+        var top = (i === vm.stack.length - 1) ? " top" : "";
+        html += '<div class="stackrow' + top + '"><span class="slabel">[' + i + "]</span><span>" + escapeHtml(valueToStr(vm.stack[i])) + "</span></div>";
+      }
+      stackOut.innerHTML = html;
+    }
+    // frames
+    if (vm.frames.length === 0) framesOut.innerHTML = "<div class='slabel'>no frames</div>";
+    else {
+      var fh = "";
+      for (var f = vm.frames.length - 1; f >= 0; f--) {
+        var fr = vm.frames[f];
+        var cur = (f === vm.frames.length - 1) ? " current" : "";
+        fh += '<div class="framerow' + cur + '"><span>fn ' + escapeHtml(fr.closure.fn.name) +
+          "</span><span class='slabel'>ip " + fr.ip + " base " + fr.slotBase + "</span></div>";
+      }
+      framesOut.innerHTML = fh;
+    }
+    // ip note and highlight
+    if (activeBcId) {
+      var prev = document.getElementById(activeBcId);
+      if (prev) prev.classList.remove("active");
+      activeBcId = null;
+    }
+    if (!vm.done && !vm.error && vm.frames.length > 0) {
+      var frame = vm.frames[vm.frames.length - 1];
+      var id = "bc-" + frame.closure.fn.chunk.id + "-" + frame.ip;
+      var el = document.getElementById(id);
+      if (el) {
+        el.classList.add("active");
+        activeBcId = id;
+        el.scrollIntoView({ block: "nearest" });
+      }
+      ipOut.textContent = "Next instruction: fn " + frame.closure.fn.name + " at offset " + frame.ip;
+    } else if (vm.error) {
+      ipOut.textContent = "Halted with a runtime error.";
+    } else if (vm.done) {
+      ipOut.textContent = "Program finished. Result " + valueToStr(vm.result);
+    }
+    renderOutput();
+  }
+
+  function showResult() {
+    if (vm.error) {
+      resultOut.innerHTML = '<span class="errmsg">Runtime error: ' + escapeHtml(vm.error) + "</span>";
+    } else if (vm.done) {
+      resultOut.innerHTML = "Result: <span class='result'>" + escapeHtml(valueToStr(vm.result)) + "</span>";
+    } else {
+      resultOut.textContent = "VM paused mid program. Keep pressing Step.";
+    }
+    renderOutput();
+  }
+
+  // ---------- garbage collector visualization ----------
+  function buildGC() {
+    if (!compiled) { gcObjects = []; return; }
+    var objs = [];
+    var id = 0;
+    var fnObj = {};
+    compiled.allFunctions.forEach(function (fn) {
+      var o = { id: id++, label: "fn " + fn.name, kind: "closure", refs: [], marked: false, swept: false, root: fn.name === "main" };
+      objs.push(o);
+      fnObj[fn.chunk.id] = o;
+    });
+    compiled.allFunctions.forEach(function (fn) {
+      fn.chunk.constants.forEach(function (c) {
+        if (typeof c === "string") {
+          var label = c.length > 10 ? c.slice(0, 10) + ".." : c;
+          var o = { id: id++, label: 'str "' + label + '"', kind: "string", refs: [], marked: false, swept: false, root: false };
+          objs.push(o);
+          fnObj[fn.chunk.id].refs.push(o.id);
+        }
+      });
+    });
+    compiled.allFunctions.forEach(function (fn) {
+      fn.chunk.code.forEach(function (ins) {
+        if (ins.op === "CLOSURE") {
+          var target = fn.chunk.constants[ins.operands[0]];
+          if (target && target.chunk) fnObj[fn.chunk.id].refs.push(fnObj[target.chunk.id].id);
+        }
+      });
+    });
+    // demo temporaries that are no longer referenced by any root
+    objs.push({ id: id++, label: 'str "temp"', kind: "string", refs: [], marked: false, swept: false, root: false });
+    objs.push({ id: id++, label: 'str "old buf"', kind: "string", refs: [], marked: false, swept: false, root: false });
+    gcObjects = objs;
+  }
+
+  function renderGC(phase) {
+    if (gcObjects.length === 0) { heapOut.innerHTML = "<div class='slabel'>Heap is empty. Run a program first.</div>"; return; }
+    heapOut.innerHTML = gcObjects.map(function (o) {
+      var cls = "obj";
+      if (o.root) cls += " root";
+      if (phase === "sweep" && o.swept) cls += " swept";
+      else if (o.marked) cls += " marked";
+      return '<div class="' + cls + '"><span class="kind">' + o.kind + (o.root ? " root" : "") + "</span>" + escapeHtml(o.label) + "</div>";
+    }).join("");
+    if (phase === "mark") {
+      var live = gcObjects.filter(function (o) { return o.marked; }).length;
+      gcStat.textContent = "Mark phase complete. " + live + " of " + gcObjects.length + " objects are reachable from the roots.";
+    } else if (phase === "sweep") {
+      var freed = gcObjects.filter(function (o) { return o.swept; }).length;
+      gcStat.textContent = "Sweep phase complete. Freed " + freed + " unreachable objects. " + (gcObjects.length - freed) + " objects survive.";
+    } else {
+      gcStat.textContent = gcObjects.length + " objects on the heap. Press Run GC to mark and sweep.";
+    }
+  }
+
+  function runGC() {
+    if (gcObjects.length === 0) buildGC();
+    if (gcObjects.length === 0) { renderGC("idle"); return; }
+    gcObjects.forEach(function (o) { o.marked = false; o.swept = false; });
+    var byId = {};
+    gcObjects.forEach(function (o) { byId[o.id] = o; });
+    var work = gcObjects.filter(function (o) { return o.root; }).map(function (o) { return o.id; });
+    while (work.length) {
+      var cur = byId[work.pop()];
+      if (cur.marked) continue;
+      cur.marked = true;
+      cur.refs.forEach(function (r) { work.push(r); });
+    }
+    renderGC("mark");
+    setTimeout(function () {
+      gcObjects.forEach(function (o) { if (!o.marked) o.swept = true; });
+      renderGC("sweep");
+    }, 700);
+  }
+
+  // ---------- actions ----------
+  function clearStepUI() {
+    stackOut.innerHTML = "";
+    framesOut.innerHTML = "";
+    ipOut.textContent = "VM not started.";
+    if (activeBcId) {
+      var prev = document.getElementById(activeBcId);
+      if (prev) prev.classList.remove("active");
+      activeBcId = null;
+    }
+  }
+
+  function doRun() {
+    try {
+      compilePipeline();
+    } catch (e) {
+      resultOut.innerHTML = '<span class="errmsg">Compile error: ' + escapeHtml(e.message || String(e)) + "</span>";
+      astOut.textContent = "";
+      bcOut.innerHTML = "";
+      return;
+    }
+    initVM(compiled.mainFn);
+    runToCompletion();
+    showResult();
+    renderStep();
+    buildGC();
+    renderGC("idle");
+  }
+
+  function doStep() {
+    var needInit = !vm || vm.done || vm.error || editor.value !== lastSource;
+    if (needInit) {
+      try {
+        compilePipeline();
+      } catch (e) {
+        resultOut.innerHTML = '<span class="errmsg">Compile error: ' + escapeHtml(e.message || String(e)) + "</span>";
+        return;
+      }
+      initVM(compiled.mainFn);
+      buildGC();
+      renderGC("idle");
+      renderStep();
+      resultOut.textContent = "Stepping. Press Step to advance one instruction.";
+      return;
+    }
+    try { executeOne(); }
+    catch (e) { vm.error = e.message || String(e); }
+    renderStep();
+    if (vm.done || vm.error) showResult();
+  }
+
+  function doReset() {
+    vm = null;
+    lastSource = null;
+    clearStepUI();
+    resultOut.textContent = "VM reset. Press Run or Step.";
+    outputOut.innerHTML = "";
+  }
+
+  // ---------- samples ----------
+  var SAMPLES = {
+    "while":
+      "let sum = 0;\n" +
+      "let i = 1;\n" +
+      "while (i <= 5) {\n" +
+      "  sum = sum + i;\n" +
+      "  i = i + 1;\n" +
+      "}\n" +
+      "print sum;\n" +
+      "sum;\n",
+    "fn":
+      "fn add(a, b) {\n" +
+      "  return a + b;\n" +
+      "}\n" +
+      "let r = add(3, 4);\n" +
+      "print r;\n" +
+      "r;\n",
+    "fact":
+      "fn fact(n) {\n" +
+      "  if (n <= 1) {\n" +
+      "    return 1;\n" +
+      "  }\n" +
+      "  return n * fact(n - 1);\n" +
+      "}\n" +
+      "print fact(5);\n" +
+      "fact(5);\n"
+  };
+
+  document.querySelectorAll("[data-sample]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      editor.value = SAMPLES[btn.getAttribute("data-sample")];
+      doReset();
+    });
+  });
+
+  document.getElementById("runBtn").addEventListener("click", doRun);
+  document.getElementById("stepBtn").addEventListener("click", doStep);
+  document.getElementById("resetBtn").addEventListener("click", doReset);
+  document.getElementById("gcBtn").addEventListener("click", runGC);
+
+  // initial program
+  editor.value = SAMPLES["fact"];
+  renderGC("idle");
+})();
+</script>
 </body>
 </html>
