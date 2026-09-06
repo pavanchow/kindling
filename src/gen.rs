@@ -76,7 +76,25 @@ impl Gen {
     }
 
     fn int_literal(&mut self) -> String {
-        self.rng.range_i64(-9, 20).to_string()
+        // Mostly small, but occasionally reach for values near the i64 extremes
+        // so integer arithmetic wraps. Both evaluators wrap identically, so the
+        // overflow is harmless to agreement while still exercising the path.
+        if self.rng.chance(1) {
+            // i64::MIN is deliberately absent: its magnitude 9223372036854775808
+            // is one past i64::MAX, and the lexer tokenizes the digits before the
+            // unary minus applies, so that literal does not fit. Both evaluators
+            // reject it identically, but a valid-program generator must not emit
+            // it. Wrapping still gets exercised through the values below.
+            let extremes = [
+                "9223372036854775807",
+                "-9223372036854775807",
+                "9223372036854775800",
+                "4611686018427387904",
+            ];
+            extremes[self.rng.below(extremes.len())].to_string()
+        } else {
+            self.rng.range_i64(-9, 20).to_string()
+        }
     }
 
     fn nonzero_literal(&mut self) -> String {
@@ -189,14 +207,97 @@ impl Gen {
                 self.emit_plain_fn();
             }
         }
+        if self.rng.chance(4) {
+            self.emit_mutual_recursion();
+        }
+    }
+
+    /// Emit a pair of mutually recursive top-level functions. Each one shrinks
+    /// its argument toward a base case and calls the other, which resolves the
+    /// forward reference through the global name at run time. Both are marked
+    /// recursive so callers bound the starting argument.
+    fn emit_mutual_recursion(&mut self) {
+        let a = format!("f{}", self.funcs.len());
+        let b = format!("f{}", self.funcs.len() + 1);
+        let base_a = self.int_literal();
+        let base_b = self.int_literal();
+        let op_a = ["+", "-"][self.rng.below(2)];
+        let op_b = ["+", "-"][self.rng.below(2)];
+        self.out.push_str(&format!("fn {a}(n) {{\n"));
+        self.out
+            .push_str(&format!("  if (n <= 0) {{ return {base_a}; }}\n"));
+        self.out
+            .push_str(&format!("  return {b}(n - 1) {op_a} 1;\n}}\n"));
+        self.out.push_str(&format!("fn {b}(n) {{\n"));
+        self.out
+            .push_str(&format!("  if (n <= 0) {{ return {base_b}; }}\n"));
+        self.out
+            .push_str(&format!("  return {a}(n - 1) {op_b} 1;\n}}\n"));
+        self.funcs.push(FnInfo {
+            name: a,
+            arity: 1,
+            recursive: true,
+        });
+        self.funcs.push(FnInfo {
+            name: b,
+            arity: 1,
+            recursive: true,
+        });
+    }
+
+    /// A short string literal built only from characters that survive the
+    /// lexer, the disassembler quote form, and the binary encoding unchanged.
+    fn string_literal(&mut self) -> String {
+        let alphabet = [
+            "", "a", "ab", "abc", "hi", "x", "kindling", " ", "a b", "1",
+        ];
+        format!("{:?}", alphabet[self.rng.below(alphabet.len())])
+    }
+
+    /// A string-typed expression: a literal, or a concatenation of two string
+    /// expressions. Kept separate from the numeric expression grammar so string
+    /// and number types never mix.
+    fn string_expr(&mut self, depth: usize) -> String {
+        if depth == 0 || self.rng.chance(4) {
+            self.string_literal()
+        } else {
+            let l = self.string_expr(depth - 1);
+            let r = self.string_expr(depth - 1);
+            format!("({l} + {r})")
+        }
+    }
+
+    /// Emit a statement that prints a string value or a string comparison. The
+    /// differential gate compares printed output as well as the returned value,
+    /// so this exercises concatenation, equality, and empty-string boundaries in
+    /// both evaluators without leaking string typed variables into numeric code.
+    fn emit_string_stmt(&mut self) {
+        match self.rng.below(3) {
+            0 => {
+                let s = self.string_expr(2);
+                self.out.push_str(&format!("print {s};\n"));
+            }
+            1 => {
+                let l = self.string_expr(2);
+                let r = self.string_expr(2);
+                let op = ["==", "!="][self.rng.below(2)];
+                self.out.push_str(&format!("print {l} {op} {r};\n"));
+            }
+            _ => {
+                let s = self.string_expr(2);
+                self.out.push_str(&format!("print {s};\n"));
+            }
+        }
     }
 
     /// Emit a closure: a nested function that captures one variable from the
-    /// current scope by value, then call it and bind the result. Defined inside
-    /// a function this captures a local as an upvalue; defined at the top level
-    /// it captures a global. The body reads the captured variable and its own
-    /// parameter only, never assigns them, matching the read only capture both
-    /// evaluators agree on. It is never recursive.
+    /// current scope, then call it and bind the result. Defined inside a
+    /// function this captures a local as an upvalue; defined at the top level it
+    /// captures a global. Sometimes the closure only reads the captured variable,
+    /// and sometimes it reassigns it, so that mutation through an upvalue is
+    /// exercised. After the call the captured variable is read again, so any
+    /// divergence between capture by reference and capture by value shows up as a
+    /// value mismatch. It is never recursive.
     fn emit_captured_closure(&mut self, indent: &str) {
         if self.scope.is_empty() {
             return;
@@ -207,17 +308,35 @@ impl Gen {
         };
         let cname = format!("c{}", self.var_id);
         self.var_id += 1;
+        let mutating = self.rng.chance(5);
         self.out.push_str(&format!("{indent}fn {cname}(z) {{\n"));
-        let saved = std::mem::replace(&mut self.scope, vec!["z".to_string(), captured]);
+        let saved = std::mem::replace(&mut self.scope, vec!["z".to_string(), captured.clone()]);
         let body = self.expr(self.depth_budget);
-        self.out
-            .push_str(&format!("{indent}  return {body};\n{indent}}}\n"));
+        if mutating {
+            // Reassign the captured variable through the upvalue, then return it.
+            let delta = self.expr(self.depth_budget);
+            self.out
+                .push_str(&format!("{indent}  {captured} = {captured} + ({delta});\n"));
+            self.out
+                .push_str(&format!("{indent}  return {captured} + ({body});\n{indent}}}\n"));
+        } else {
+            self.out
+                .push_str(&format!("{indent}  return {body};\n{indent}}}\n"));
+        }
         self.scope = saved;
         let resvar = self.fresh_var();
         let arg = self.small_arg(self.depth_budget);
         self.out
             .push_str(&format!("{indent}let {resvar} = {cname}({arg});\n"));
         self.scope.push(resvar);
+        // Read the captured variable again so a mutating closure's effect (or
+        // lack of one) is observable to the differential gate.
+        if mutating {
+            let obs = self.fresh_var();
+            self.out
+                .push_str(&format!("{indent}let {obs} = {captured};\n"));
+            self.scope.push(obs);
+        }
     }
 
     fn emit_plain_fn(&mut self) {
@@ -288,6 +407,7 @@ impl Gen {
             }
             4 => self.emit_while(),
             5 => self.emit_captured_closure(""),
+            6 => self.emit_string_stmt(),
             _ => {
                 let name = self.fresh_var();
                 let e = self.expr(self.depth_budget);
