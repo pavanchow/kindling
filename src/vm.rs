@@ -81,8 +81,8 @@ impl Vm {
     }
 
     fn read_short(&mut self, program: &Program, frame: usize) -> u16 {
-        let hi = self.read_byte(program, frame) as u16;
-        let lo = self.read_byte(program, frame) as u16;
+        let hi = u16::from(self.read_byte(program, frame));
+        let lo = u16::from(self.read_byte(program, frame));
         (hi << 8) | lo
     }
 
@@ -137,7 +137,7 @@ impl Vm {
                 OP_CONST => {
                     let idx = self.read_short(program, frame) as usize;
                     let c = self.constant(program, frame, idx);
-                    let v = self.materialize(c, program)?;
+                    let v = self.materialize(c, program);
                     self.push(v);
                 }
                 OP_NIL => self.push(Value::Nil),
@@ -160,10 +160,7 @@ impl Vm {
                     self.push(Value::Bool(v.is_falsey()));
                 }
                 OP_ADD => self.binary_add()?,
-                OP_SUB => self.binary_num(op)?,
-                OP_MUL => self.binary_num(op)?,
-                OP_DIV => self.binary_num(op)?,
-                OP_MOD => self.binary_num(op)?,
+                OP_SUB | OP_MUL | OP_DIV | OP_MOD => self.binary_num(op)?,
                 OP_EQ => {
                     let b = self.pop();
                     let a = self.pop();
@@ -258,9 +255,8 @@ impl Vm {
                 OP_CLOSURE => {
                     let idx = self.read_short(program, frame) as usize;
                     let c = self.constant(program, frame, idx);
-                    let fi = match c {
-                        Constant::Func(fi) => fi,
-                        _ => return Err("CLOSURE operand is not a function".into()),
+                    let Constant::Func(fi) = c else {
+                        return Err("CLOSURE operand is not a function".into());
                     };
                     let upvalue_count = program.funcs[fi].upvalue_count;
                     let mut upvalues = Vec::with_capacity(upvalue_count);
@@ -308,8 +304,8 @@ impl Vm {
         }
     }
 
-    fn materialize(&mut self, c: Constant, program: &Program) -> Result<Value, String> {
-        let v = match c {
+    fn materialize(&mut self, c: Constant, program: &Program) -> Value {
+        match c {
             Constant::Nil => Value::Nil,
             Constant::Bool(b) => Value::Bool(b),
             Constant::Int(n) => Value::Int(n),
@@ -326,8 +322,7 @@ impl Vm {
                     .collect();
                 Value::Obj(self.heap.alloc(Obj::Closure(Closure { func: fi, upvalues })))
             }
-        };
-        Ok(v)
+        }
     }
 
     fn const_str(&self, program: &Program, frame: usize, idx: usize) -> Result<String, String> {
@@ -339,9 +334,8 @@ impl Vm {
 
     fn call_value(&mut self, program: &Program, argc: usize) -> Result<(), String> {
         let callee = self.peek(argc);
-        let r = match callee {
-            Value::Obj(r) => r,
-            _ => return Err("can only call functions".into()),
+        let Value::Obj(r) = callee else {
+            return Err("can only call functions".into());
         };
         let func = match self.heap.get(r) {
             Obj::Closure(c) => c.func,
@@ -409,7 +403,7 @@ impl Vm {
                 _ => return Err("len expects a string".into()),
             },
         };
-        for _ in 0..argc + 1 {
+        for _ in 0..=argc {
             self.pop();
         }
         self.push(result);
@@ -447,13 +441,11 @@ impl Vm {
         let mut i = 0;
         while i < self.open_upvalues.len() {
             let r = self.open_upvalues[i];
-            let loc = match self.heap.get(r) {
-                Obj::Upvalue(Upvalue::Open(loc)) => *loc,
-                _ => {
-                    self.open_upvalues.swap_remove(i);
-                    continue;
-                }
+            let Obj::Upvalue(Upvalue::Open(loc)) = self.heap.get(r) else {
+                self.open_upvalues.swap_remove(i);
+                continue;
             };
+            let loc = *loc;
             if loc >= from {
                 let v = self.stack[loc];
                 *self.heap.get_mut(r) = Obj::Upvalue(Upvalue::Closed(v));
@@ -533,6 +525,7 @@ impl Vm {
     }
 
     fn binary_cmp(&mut self, op: u8) -> Result<(), String> {
+        use std::cmp::Ordering::{Greater, Less};
         let b = self.pop();
         let a = self.pop();
         let ord = match (a, b) {
@@ -544,7 +537,6 @@ impl Vm {
                 _ => return Err("operands of comparison must be numbers".into()),
             },
         };
-        use std::cmp::Ordering::*;
         let result = match op {
             OP_LT => ord == Less,
             OP_LE => ord != Greater,
@@ -601,8 +593,7 @@ impl Vm {
             Value::Float(x) => Outcome::Float(x),
             Value::Obj(r) => match self.heap.get(r) {
                 Obj::Str(s) => Outcome::Str(s.clone()),
-                Obj::Closure(_) => Outcome::Func,
-                Obj::Native(_) => Outcome::Func,
+                Obj::Closure(_) | Obj::Native(_) => Outcome::Func,
                 Obj::Upvalue(_) => Outcome::Nil,
             },
         }

@@ -6,6 +6,32 @@
 //! compiler, VM, tree-walking reference interpreter, disassembler/assembler,
 //! and binary serializer) plus a few convenience entry points.
 
+#![warn(clippy::pedantic)]
+// These pedantic lints are intentionally allowed for this crate:
+// - the casts are deliberate and bounded (bytecode operands are range-checked
+//   before narrowing, u32 length prefixes bound serialized sizes, and i64 to
+//   f64 promotion is the language's defined numeric semantics);
+// - almost every fallible function returns `Result<_, String>`, so per-function
+//   `# Errors`/`# Panics` prose would be pure noise;
+// - `must_use` and `similar_names` add churn without value at this size;
+// - the opcode module is a flat table of constants that reads best as a glob;
+// - the VM instruction loop is one long, deliberate dispatch match.
+// - exact float comparison is the language's defined equality and its float
+//   round-trip identity, so it must compare bit-for-bit.
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::float_cmp,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate,
+    clippy::similar_names,
+    clippy::wildcard_imports,
+    clippy::too_many_lines
+)]
+
 pub mod ast;
 pub mod chunk;
 pub mod compiler;

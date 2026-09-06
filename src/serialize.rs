@@ -85,7 +85,7 @@ fn put_constant(b: &mut Vec<u8>, c: &Constant) {
         Constant::Nil => b.push(TAG_NIL),
         Constant::Bool(v) => {
             b.push(TAG_BOOL);
-            b.push(*v as u8);
+            b.push(u8::from(*v));
         }
         Constant::Int(n) => {
             b.push(TAG_INT);

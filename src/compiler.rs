@@ -92,7 +92,7 @@ impl Compiler {
             proto,
             locals: vec![reserved],
             upvalues: Vec::new(),
-            scope_depth: if script { 0 } else { 1 },
+            scope_depth: i32::from(!script),
         });
     }
 
@@ -405,7 +405,7 @@ impl Compiler {
         let cidx = self.add_constant(Constant::Func(func_index));
         self.emit_op_short(OP_CLOSURE, cidx);
         for uv in &upvalues {
-            self.emit(uv.is_local as u8);
+            self.emit(u8::from(uv.is_local));
             self.emit(uv.index);
         }
 

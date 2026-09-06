@@ -242,7 +242,7 @@ impl Interp {
             Expr::Binary(op, l, r) => {
                 let a = self.eval_expr(l, env)?;
                 let b = self.eval_expr(r, env)?;
-                eval_binary(*op, a, b)
+                eval_binary(*op, &a, &b)
             }
             Expr::Call(callee, args) => {
                 let callee_v = self.eval_expr(callee, env)?;
@@ -343,25 +343,25 @@ fn num(v: &RValue) -> Option<f64> {
     }
 }
 
-fn eval_binary(op: BinOp, a: RValue, b: RValue) -> IResult<RValue> {
+fn eval_binary(op: BinOp, a: &RValue, b: &RValue) -> IResult<RValue> {
     match op {
-        BinOp::Add => match (&a, &b) {
+        BinOp::Add => match (a, b) {
             (RValue::Int(x), RValue::Int(y)) => Ok(RValue::Int(x.wrapping_add(*y))),
             (RValue::Str(x), RValue::Str(y)) => Ok(RValue::Str(Rc::from(format!("{x}{y}")))),
-            _ => match (num(&a), num(&b)) {
+            _ => match (num(a), num(b)) {
                 (Some(x), Some(y)) => Ok(RValue::Float(x + y)),
                 _ => Err("operands of '+' must be numbers or strings".into()),
             },
         },
         BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => arith(op, a, b),
-        BinOp::Eq => Ok(RValue::Bool(values_equal(&a, &b))),
-        BinOp::Neq => Ok(RValue::Bool(!values_equal(&a, &b))),
+        BinOp::Eq => Ok(RValue::Bool(values_equal(a, b))),
+        BinOp::Neq => Ok(RValue::Bool(!values_equal(a, b))),
         BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => compare(op, a, b),
     }
 }
 
-fn arith(op: BinOp, a: RValue, b: RValue) -> IResult<RValue> {
-    if let (RValue::Int(x), RValue::Int(y)) = (&a, &b) {
+fn arith(op: BinOp, a: &RValue, b: &RValue) -> IResult<RValue> {
+    if let (RValue::Int(x), RValue::Int(y)) = (a, b) {
         let (x, y) = (*x, *y);
         return match op {
             BinOp::Sub => Ok(RValue::Int(x.wrapping_sub(y))),
@@ -383,7 +383,7 @@ fn arith(op: BinOp, a: RValue, b: RValue) -> IResult<RValue> {
             _ => unreachable!(),
         };
     }
-    match (num(&a), num(&b)) {
+    match (num(a), num(b)) {
         (Some(x), Some(y)) => match op {
             BinOp::Sub => Ok(RValue::Float(x - y)),
             BinOp::Mul => Ok(RValue::Float(x * y)),
@@ -407,12 +407,12 @@ fn arith(op: BinOp, a: RValue, b: RValue) -> IResult<RValue> {
     }
 }
 
-fn compare(op: BinOp, a: RValue, b: RValue) -> IResult<RValue> {
-    use std::cmp::Ordering::*;
-    let ord = if let (RValue::Int(x), RValue::Int(y)) = (&a, &b) {
+fn compare(op: BinOp, a: &RValue, b: &RValue) -> IResult<RValue> {
+    use std::cmp::Ordering::{Greater, Less};
+    let ord = if let (RValue::Int(x), RValue::Int(y)) = (a, b) {
         x.cmp(y)
     } else {
-        match (num(&a), num(&b)) {
+        match (num(a), num(b)) {
             (Some(x), Some(y)) => x.partial_cmp(&y).ok_or("cannot compare NaN".to_string())?,
             _ => return Err("operands of comparison must be numbers".into()),
         }
@@ -459,8 +459,7 @@ pub fn to_outcome(v: &RValue) -> Outcome {
         RValue::Int(n) => Outcome::Int(*n),
         RValue::Float(x) => Outcome::Float(*x),
         RValue::Str(s) => Outcome::Str(s.to_string()),
-        RValue::Fn(_) => Outcome::Func,
-        RValue::Native(_) => Outcome::Func,
+        RValue::Fn(_) | RValue::Native(_) => Outcome::Func,
     }
 }
 

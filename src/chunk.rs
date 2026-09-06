@@ -50,7 +50,7 @@ impl FuncProto {
 
     /// Read a big-endian 16-bit value at the given code offset.
     pub fn read_short(&self, offset: usize) -> u16 {
-        ((self.code[offset] as u16) << 8) | (self.code[offset + 1] as u16)
+        (u16::from(self.code[offset]) << 8) | u16::from(self.code[offset + 1])
     }
 }
 

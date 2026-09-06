@@ -68,6 +68,9 @@ struct Gen {
     depth_budget: usize,
 }
 
+// The generator assembles source text, where building it up with `format!`
+// pushes reads more clearly than threading a `Write` through every helper.
+#[allow(clippy::format_push_string)]
 impl Gen {
     fn fresh_var(&mut self) -> String {
         let name = format!("v{}", self.var_id);
@@ -299,21 +302,14 @@ impl Gen {
     /// so this exercises concatenation, equality, and empty-string boundaries in
     /// both evaluators without leaking string typed variables into numeric code.
     fn emit_string_stmt(&mut self) {
-        match self.rng.below(3) {
-            0 => {
-                let s = self.string_expr(2);
-                self.out.push_str(&format!("print {s};\n"));
-            }
-            1 => {
-                let l = self.string_expr(2);
-                let r = self.string_expr(2);
-                let op = ["==", "!="][self.rng.below(2)];
-                self.out.push_str(&format!("print {l} {op} {r};\n"));
-            }
-            _ => {
-                let s = self.string_expr(2);
-                self.out.push_str(&format!("print {s};\n"));
-            }
+        if self.rng.chance(4) {
+            let l = self.string_expr(2);
+            let r = self.string_expr(2);
+            let op = ["==", "!="][self.rng.below(2)];
+            self.out.push_str(&format!("print {l} {op} {r};\n"));
+        } else {
+            let s = self.string_expr(2);
+            self.out.push_str(&format!("print {s};\n"));
         }
     }
 
@@ -371,7 +367,7 @@ impl Gen {
         let arity = 1 + self.rng.below(2);
         let saved = std::mem::take(&mut self.scope);
         let params: Vec<String> = (0..arity).map(|i| format!("p{i}")).collect();
-        self.scope = params.clone();
+        self.scope.clone_from(&params);
         self.out.push_str(&format!("fn {name}({}) {{\n", params.join(", ")));
         let t = self.expr(self.depth_budget);
         self.out.push_str(&format!("  let t = {t};\n"));
@@ -410,12 +406,6 @@ impl Gen {
 
     fn emit_statement(&mut self) {
         match self.rng.below(8) {
-            0 | 1 => {
-                let name = self.fresh_var();
-                let e = self.expr(self.depth_budget);
-                self.out.push_str(&format!("let {name} = {e};\n"));
-                self.scope.push(name);
-            }
             2 => {
                 if let Some(target) = self.pick_scope_var() {
                     let e = self.expr(self.depth_budget);
@@ -435,6 +425,7 @@ impl Gen {
             4 => self.emit_while(),
             5 => self.emit_captured_closure(""),
             6 => self.emit_string_stmt(),
+            // 0, 1, and 7 all introduce a fresh variable bound to an expression.
             _ => {
                 let name = self.fresh_var();
                 let e = self.expr(self.depth_budget);
@@ -470,6 +461,7 @@ impl Gen {
 
 /// Generate one random program. `ops` scales how many statements and how deep
 /// the expressions get (driven by the `KINDLING_FUZZ_OPS` env var in tests).
+#[allow(clippy::format_push_string)]
 pub fn random_program(seed: u64, ops: usize) -> String {
     let statements = 3 + (ops % 8);
     let depth = 2 + (ops % 3);

@@ -6,23 +6,20 @@
 
 use crate::chunk::{Constant, FuncProto, Program};
 use crate::opcode::*;
+use std::fmt::Write as _;
 
 pub fn disassemble(program: &Program) -> String {
     let mut out = String::new();
-    out.push_str(&format!(
-        "program main={} funcs={}\n",
-        program.main,
-        program.funcs.len()
-    ));
+    let _ = writeln!(out, "program main={} funcs={}", program.main, program.funcs.len());
     for (i, f) in program.funcs.iter().enumerate() {
         out.push('\n');
-        out.push_str(&format!("func {i}\n"));
-        out.push_str(&format!("  name {}\n", quote(&f.name)));
-        out.push_str(&format!("  arity {}\n", f.arity));
-        out.push_str(&format!("  upvals {}\n", f.upvalue_count));
-        out.push_str(&format!("  constants {}\n", f.constants.len()));
+        let _ = writeln!(out, "func {i}");
+        let _ = writeln!(out, "  name {}", quote(&f.name));
+        let _ = writeln!(out, "  arity {}", f.arity);
+        let _ = writeln!(out, "  upvals {}", f.upvalue_count);
+        let _ = writeln!(out, "  constants {}", f.constants.len());
         for (ci, c) in f.constants.iter().enumerate() {
-            out.push_str(&format!("    {ci} {}\n", constant_text(c)));
+            let _ = writeln!(out, "    {ci} {}", constant_text(c));
         }
         out.push_str("  code\n");
         disassemble_code(program, f, &mut out);
@@ -47,12 +44,12 @@ fn disassemble_code(program: &Program, f: &FuncProto, out: &mut String) {
         ip += 1;
         match operand(op) {
             Operand::None => {
-                out.push_str(&format!("    {start:04} {mnemonic}\n"));
+                let _ = writeln!(out, "    {start:04} {mnemonic}");
             }
             Operand::Byte => {
                 let b = f.code[ip];
                 ip += 1;
-                out.push_str(&format!("    {start:04} {mnemonic} {b}\n"));
+                let _ = writeln!(out, "    {start:04} {mnemonic} {b}");
             }
             Operand::Short => {
                 let v = f.read_short(ip);
@@ -62,7 +59,7 @@ fn disassemble_code(program: &Program, f: &FuncProto, out: &mut String) {
                     OP_LOOP => format!("  // -> {}", ip - v as usize),
                     _ => String::new(),
                 };
-                out.push_str(&format!("    {start:04} {mnemonic} {v}{target}\n"));
+                let _ = writeln!(out, "    {start:04} {mnemonic} {v}{target}");
             }
             Operand::Closure => {
                 let cidx = f.read_short(ip);
@@ -79,7 +76,7 @@ fn disassemble_code(program: &Program, f: &FuncProto, out: &mut String) {
                     let is_local = f.code[ip];
                     let index = f.code[ip + 1];
                     ip += 2;
-                    line.push_str(&format!(" {is_local} {index}"));
+                    let _ = write!(line, " {is_local} {index}");
                 }
                 line.push('\n');
                 out.push_str(&line);
@@ -252,9 +249,8 @@ fn assemble_func(lines: &mut Lines) -> Result<FuncProto, String> {
 
     // Code instructions run until the next `func` or end of input.
     while !peek_meaningful_starts_with(lines, "func ") {
-        let inst = match next_meaningful(lines) {
-            Some(l) => l,
-            None => break,
+        let Some(inst) = next_meaningful(lines) else {
+            break;
         };
         assemble_instruction(inst.trim(), &mut proto)?;
     }

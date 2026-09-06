@@ -82,7 +82,6 @@ impl Obj {
     /// The GC references directly contained by this object.
     fn children(&self, out: &mut Vec<GcRef>) {
         match self {
-            Obj::Str(_) => {}
             Obj::Closure(c) => {
                 for uv in &c.upvalues {
                     out.push(*uv);
@@ -91,8 +90,9 @@ impl Obj {
             // An open upvalue's value lives on the value stack, which the VM
             // roots directly, so only a closed upvalue owns a value to trace.
             Obj::Upvalue(Upvalue::Closed(Value::Obj(r))) => out.push(*r),
-            Obj::Upvalue(_) => {}
-            Obj::Native(_) => {}
+            // Strings, open or nil-closed upvalues, and natives own no traceable
+            // references.
+            Obj::Str(_) | Obj::Upvalue(_) | Obj::Native(_) => {}
         }
     }
 }
@@ -153,7 +153,7 @@ impl Heap {
     }
 
     pub fn is_live(&self, r: GcRef) -> bool {
-        self.slots.get(r.0).map(|s| s.is_some()).unwrap_or(false)
+        self.slots.get(r.0).is_some_and(Option::is_some)
     }
 
     /// Number of currently allocated (unfreed) objects.
@@ -170,7 +170,7 @@ impl Heap {
     /// Mark from `roots`, sweep everything unreachable. Returns the number of
     /// objects freed.
     pub fn collect(&mut self, roots: &[Value]) -> usize {
-        for m in self.marks.iter_mut() {
+        for m in &mut self.marks {
             *m = false;
         }
 
