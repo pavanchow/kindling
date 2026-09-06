@@ -1,6 +1,8 @@
 //! Kindling command-line tool: run a source file, disassemble it, or start a
 //! REPL.
 
+#![warn(clippy::pedantic)]
+
 use std::io::{self, BufRead, Write};
 use std::process::ExitCode;
 
