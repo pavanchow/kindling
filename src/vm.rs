@@ -1,7 +1,8 @@
 //! The stack-based bytecode virtual machine.
 
 use crate::chunk::{Constant, Program};
-use crate::gc::{Closure, GcRef, Heap, Obj};
+use crate::compiler::{CALL_DEPTH_ERROR, MAX_CALL_DEPTH};
+use crate::gc::{Closure, GcRef, Heap, Obj, Upvalue};
 use crate::opcode::*;
 use crate::value::{Outcome, Value};
 
@@ -18,6 +19,10 @@ pub struct Vm {
     globals: std::collections::HashMap<String, Value>,
     heap: Heap,
     output: String,
+    /// Upvalues that still point at a live value-stack slot, newest last. An
+    /// upvalue is captured into this list when a closure closes over a local and
+    /// removed when its slot is closed over on return or scope exit.
+    open_upvalues: Vec<GcRef>,
     /// GC is exercised during execution unless disabled for a test.
     auto_gc: bool,
 }
@@ -36,6 +41,7 @@ impl Vm {
             globals: std::collections::HashMap::new(),
             heap: Heap::new(),
             output: String::new(),
+            open_upvalues: Vec::new(),
             auto_gc: true,
         }
     }
@@ -95,6 +101,9 @@ impl Vm {
         }
         for f in &self.frames {
             roots.push(Value::Obj(f.closure));
+        }
+        for r in &self.open_upvalues {
+            roots.push(Value::Obj(*r));
         }
         self.heap.collect(&roots);
     }
@@ -201,20 +210,27 @@ impl Vm {
                 }
                 OP_GET_UPVALUE => {
                     let i = self.read_byte(program, frame) as usize;
-                    let cl = self.frames[frame].closure;
-                    let v = match self.heap.get(cl) {
-                        Obj::Closure(c) => c.upvalues[i],
-                        _ => return Err("closure expected".into()),
+                    let uv = self.frame_upvalue(frame, i)?;
+                    let v = match self.heap.get(uv) {
+                        Obj::Upvalue(Upvalue::Open(loc)) => self.stack[*loc],
+                        Obj::Upvalue(Upvalue::Closed(v)) => *v,
+                        _ => return Err("upvalue expected".into()),
                     };
                     self.push(v);
                 }
                 OP_SET_UPVALUE => {
                     let i = self.read_byte(program, frame) as usize;
-                    let cl = self.frames[frame].closure;
+                    let uv = self.frame_upvalue(frame, i)?;
                     let v = self.peek(0);
-                    match self.heap.get_mut(cl) {
-                        Obj::Closure(c) => c.upvalues[i] = v,
-                        _ => return Err("closure expected".into()),
+                    match self.heap.get(uv) {
+                        Obj::Upvalue(Upvalue::Open(loc)) => {
+                            let loc = *loc;
+                            self.stack[loc] = v;
+                        }
+                        Obj::Upvalue(Upvalue::Closed(_)) => {
+                            *self.heap.get_mut(uv) = Obj::Upvalue(Upvalue::Closed(v));
+                        }
+                        _ => return Err("upvalue expected".into()),
                     }
                 }
                 OP_JUMP => {
@@ -233,7 +249,7 @@ impl Vm {
                 }
                 OP_CALL => {
                     let argc = self.read_byte(program, frame) as usize;
-                    self.call_value(argc)?;
+                    self.call_value(program, argc)?;
                 }
                 OP_CLOSURE => {
                     let idx = self.read_short(program, frame) as usize;
@@ -247,17 +263,13 @@ impl Vm {
                     for _ in 0..upvalue_count {
                         let is_local = self.read_byte(program, frame);
                         let index = self.read_byte(program, frame) as usize;
-                        let v = if is_local != 0 {
+                        let uv = if is_local != 0 {
                             let base = self.frames[frame].slot_base;
-                            self.stack[base + index]
+                            self.capture_upvalue(base + index)
                         } else {
-                            let cl = self.frames[frame].closure;
-                            match self.heap.get(cl) {
-                                Obj::Closure(c) => c.upvalues[index],
-                                _ => return Err("closure expected".into()),
-                            }
+                            self.frame_upvalue(frame, index)?
                         };
-                        upvalues.push(v);
+                        upvalues.push(uv);
                     }
                     let r = self.heap.alloc(Obj::Closure(Closure { func: fi, upvalues }));
                     self.push(Value::Obj(r));
@@ -265,6 +277,9 @@ impl Vm {
                 OP_RETURN => {
                     let result = self.pop();
                     let base = self.frames[frame].slot_base;
+                    // Every variable in this frame is about to vanish from the
+                    // stack. Close any upvalue still pointing into it first.
+                    self.close_upvalues(base);
                     self.frames.pop();
                     if self.frames.is_empty() {
                         self.stack.truncate(base);
@@ -272,6 +287,11 @@ impl Vm {
                     }
                     self.stack.truncate(base);
                     self.push(result);
+                }
+                OP_CLOSE_UPVALUE => {
+                    let top = self.stack.len() - 1;
+                    self.close_upvalues(top);
+                    self.pop();
                 }
                 OP_PRINT => {
                     let v = self.pop();
@@ -292,11 +312,15 @@ impl Vm {
             Constant::Float(x) => Value::Float(x),
             Constant::Str(s) => Value::Obj(self.heap.alloc_str(s)),
             Constant::Func(fi) => {
+                // A bare function constant carries no captured environment, so
+                // its upvalue cells start closed over nil. The compiler always
+                // reaches functions through OP_CLOSURE instead, which is where
+                // real capture happens.
                 let upvalue_count = program.funcs[fi].upvalue_count;
-                Value::Obj(self.heap.alloc(Obj::Closure(Closure {
-                    func: fi,
-                    upvalues: vec![Value::Nil; upvalue_count],
-                })))
+                let upvalues = (0..upvalue_count)
+                    .map(|_| self.heap.alloc(Obj::Upvalue(Upvalue::Closed(Value::Nil))))
+                    .collect();
+                Value::Obj(self.heap.alloc(Obj::Closure(Closure { func: fi, upvalues })))
             }
         };
         Ok(v)
@@ -309,7 +333,7 @@ impl Vm {
         }
     }
 
-    fn call_value(&mut self, argc: usize) -> Result<(), String> {
+    fn call_value(&mut self, program: &Program, argc: usize) -> Result<(), String> {
         let callee = self.peek(argc);
         let r = match callee {
             Value::Obj(r) => r,
@@ -319,6 +343,16 @@ impl Vm {
             Obj::Closure(c) => c.func,
             _ => return Err("can only call functions".into()),
         };
+        let proto = &program.funcs[func];
+        if argc != proto.arity {
+            return Err(format!(
+                "function '{}' expects {} arguments, got {}",
+                proto.name, proto.arity, argc
+            ));
+        }
+        if self.frames.len() >= MAX_CALL_DEPTH {
+            return Err(CALL_DEPTH_ERROR.into());
+        }
         let slot_base = self.stack.len() - argc - 1;
         self.frames.push(Frame {
             closure: r,
@@ -327,6 +361,54 @@ impl Vm {
             slot_base,
         });
         Ok(())
+    }
+
+    /// The upvalue cell at index `i` of the closure running in `frame`.
+    fn frame_upvalue(&self, frame: usize, i: usize) -> Result<GcRef, String> {
+        let cl = self.frames[frame].closure;
+        match self.heap.get(cl) {
+            Obj::Closure(c) => Ok(c.upvalues[i]),
+            _ => Err("closure expected".into()),
+        }
+    }
+
+    /// Capture the value-stack slot `location` as an upvalue, reusing an existing
+    /// open upvalue for that slot so every closure over one variable shares a
+    /// single cell (matching the reference interpreter's shared environment).
+    fn capture_upvalue(&mut self, location: usize) -> GcRef {
+        for &r in &self.open_upvalues {
+            if let Obj::Upvalue(Upvalue::Open(loc)) = self.heap.get(r) {
+                if *loc == location {
+                    return r;
+                }
+            }
+        }
+        let r = self.heap.alloc(Obj::Upvalue(Upvalue::Open(location)));
+        self.open_upvalues.push(r);
+        r
+    }
+
+    /// Close every open upvalue pointing at or above `from`, lifting each one's
+    /// current stack value into the cell so it survives the slot going away.
+    fn close_upvalues(&mut self, from: usize) {
+        let mut i = 0;
+        while i < self.open_upvalues.len() {
+            let r = self.open_upvalues[i];
+            let loc = match self.heap.get(r) {
+                Obj::Upvalue(Upvalue::Open(loc)) => *loc,
+                _ => {
+                    self.open_upvalues.swap_remove(i);
+                    continue;
+                }
+            };
+            if loc >= from {
+                let v = self.stack[loc];
+                *self.heap.get_mut(r) = Obj::Upvalue(Upvalue::Closed(v));
+                self.open_upvalues.swap_remove(i);
+            } else {
+                i += 1;
+            }
+        }
     }
 
     fn binary_add(&mut self) -> Result<(), String> {
@@ -450,6 +532,8 @@ impl Vm {
             Value::Obj(r) => match self.heap.get(r) {
                 Obj::Str(s) => s.clone(),
                 Obj::Closure(c) => format!("<fn {}>", c.func),
+                // Upvalue cells never surface as user values.
+                Obj::Upvalue(_) => "<upvalue>".to_string(),
             },
         }
     }
@@ -464,6 +548,7 @@ impl Vm {
             Value::Obj(r) => match self.heap.get(r) {
                 Obj::Str(s) => Outcome::Str(s.clone()),
                 Obj::Closure(_) => Outcome::Func,
+                Obj::Upvalue(_) => Outcome::Nil,
             },
         }
     }

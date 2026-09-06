@@ -37,6 +37,7 @@ pub const OP_CALL: u8 = 28;
 pub const OP_CLOSURE: u8 = 29;
 pub const OP_RETURN: u8 = 30;
 pub const OP_PRINT: u8 = 31;
+pub const OP_CLOSE_UPVALUE: u8 = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operand {
@@ -81,6 +82,7 @@ pub fn name(op: u8) -> Option<&'static str> {
         OP_CLOSURE => "CLOSURE",
         OP_RETURN => "RETURN",
         OP_PRINT => "PRINT",
+        OP_CLOSE_UPVALUE => "CLOSE_UPVALUE",
         _ => return None,
     };
     Some(n)
@@ -121,6 +123,7 @@ pub fn from_name(s: &str) -> Option<u8> {
         "CLOSURE" => OP_CLOSURE,
         "RETURN" => OP_RETURN,
         "PRINT" => OP_PRINT,
+        "CLOSE_UPVALUE" => OP_CLOSE_UPVALUE,
         _ => return None,
     };
     Some(op)

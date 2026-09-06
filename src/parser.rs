@@ -3,16 +3,38 @@
 use crate::ast::{BinOp, Expr, FnDecl, Stmt, UnOp};
 use crate::lexer::{Tok, Token};
 
+/// Maximum nesting depth the recursive-descent parser will accept. Past this it
+/// returns a clean error instead of overflowing the call stack on adversarial
+/// input such as tens of thousands of nested parentheses or blocks.
+const MAX_DEPTH: usize = 800;
+
 pub struct Parser {
     toks: Vec<Token>,
     pos: usize,
+    depth: usize,
 }
 
 type PResult<T> = Result<T, String>;
 
 impl Parser {
     pub fn new(toks: Vec<Token>) -> Self {
-        Parser { toks, pos: 0 }
+        Parser {
+            toks,
+            pos: 0,
+            depth: 0,
+        }
+    }
+
+    fn enter(&mut self) -> PResult<()> {
+        self.depth += 1;
+        if self.depth > MAX_DEPTH {
+            return Err("input nested too deeply".into());
+        }
+        Ok(())
+    }
+
+    fn leave(&mut self) {
+        self.depth -= 1;
     }
 
     fn peek(&self) -> &Tok {
@@ -67,6 +89,13 @@ impl Parser {
     }
 
     fn statement(&mut self) -> PResult<Stmt> {
+        self.enter()?;
+        let r = self.statement_inner();
+        self.leave();
+        r
+    }
+
+    fn statement_inner(&mut self) -> PResult<Stmt> {
         match self.peek() {
             Tok::Let => self.let_stmt(),
             Tok::Fn => self.fn_decl(),
@@ -180,7 +209,10 @@ impl Parser {
     // Expression grammar, lowest precedence first.
 
     fn expression(&mut self) -> PResult<Expr> {
-        self.assignment()
+        self.enter()?;
+        let r = self.assignment();
+        self.leave();
+        r
     }
 
     fn assignment(&mut self) -> PResult<Expr> {
@@ -267,8 +299,10 @@ impl Parser {
         };
         if let Some(op) = op {
             self.advance();
-            let operand = self.unary()?;
-            return Ok(Expr::Unary(op, Box::new(operand)));
+            self.enter()?;
+            let operand = self.unary();
+            self.leave();
+            return Ok(Expr::Unary(op, Box::new(operand?)));
         }
         self.call()
     }

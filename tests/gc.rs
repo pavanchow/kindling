@@ -6,7 +6,7 @@
 //! objects. A VM stress test proves the collector never frees a live object
 //! during real execution.
 
-use kindling::gc::{Closure, Heap, Obj};
+use kindling::gc::{Closure, Heap, Obj, Upvalue};
 use kindling::run_source;
 use kindling::value::Value;
 use kindling::vm::Vm;
@@ -16,13 +16,17 @@ use kindling::compile_source;
 fn known_reachable_set_survives_and_dead_set_freed() {
     let mut heap = Heap::new();
 
-    // Reachable graph: a closure that captures two strings, plus a standalone
-    // reachable string. Everything else is garbage.
+    // Reachable graph: a closure that captures two strings through upvalue cells,
+    // plus a standalone reachable string. Reachability is three levels deep
+    // (closure -> upvalue cell -> string), so the mark phase must trace through
+    // the cells. Everything else is garbage.
     let s1 = heap.alloc_str("captured-one".into());
     let s2 = heap.alloc_str("captured-two".into());
+    let u1 = heap.alloc(Obj::Upvalue(Upvalue::Closed(Value::Obj(s1))));
+    let u2 = heap.alloc(Obj::Upvalue(Upvalue::Closed(Value::Obj(s2))));
     let closure = heap.alloc(Obj::Closure(Closure {
         func: 0,
-        upvalues: vec![Value::Obj(s1), Value::Obj(s2)],
+        upvalues: vec![u1, u2],
     }));
     let standalone = heap.alloc_str("standalone".into());
 
@@ -31,19 +35,21 @@ fn known_reachable_set_survives_and_dead_set_freed() {
         dead.push(heap.alloc_str(format!("garbage-{i}")));
     }
 
-    assert_eq!(heap.live_count(), 204);
+    assert_eq!(heap.live_count(), 206);
 
     let roots = [Value::Obj(closure), Value::Obj(standalone)];
     let freed = heap.collect(&roots);
 
     assert_eq!(freed, 200, "every unreachable object must be freed");
-    assert_eq!(heap.live_count(), 4, "only the reachable graph survives");
+    assert_eq!(heap.live_count(), 6, "only the reachable graph survives");
 
     // No reachable object was collected (no use-after-free of live data).
     assert!(heap.is_live(closure));
     assert!(heap.is_live(standalone));
-    assert!(heap.is_live(s1), "captured object reachable through closure");
-    assert!(heap.is_live(s2), "captured object reachable through closure");
+    assert!(heap.is_live(u1), "upvalue cell reachable through closure");
+    assert!(heap.is_live(u2), "upvalue cell reachable through closure");
+    assert!(heap.is_live(s1), "captured object reachable through closure -> cell");
+    assert!(heap.is_live(s2), "captured object reachable through closure -> cell");
 
     // Every known-dead object is actually gone.
     for d in &dead {

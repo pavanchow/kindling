@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::ast::{BinOp, Expr, FnDecl, Stmt, UnOp};
+use crate::compiler::{CALL_DEPTH_ERROR, EXPR_DEPTH_ERROR, MAX_CALL_DEPTH, MAX_EXPR_DEPTH};
 use crate::value::Outcome;
 use crate::vm::format_float;
 
@@ -86,6 +87,10 @@ enum Flow {
 
 pub struct Interp {
     output: String,
+    expr_depth: usize,
+    /// Live call depth, counting the top-level script body as one frame so it
+    /// matches the bytecode VM (whose frame stack also includes `main`).
+    call_depth: usize,
 }
 
 type IResult<T> = Result<T, String>;
@@ -100,6 +105,8 @@ impl Interp {
     pub fn new() -> Self {
         Interp {
             output: String::new(),
+            expr_depth: 0,
+            call_depth: 1,
         }
     }
 
@@ -188,6 +195,17 @@ impl Interp {
     }
 
     fn eval_expr(&mut self, expr: &Expr, env: &Env) -> IResult<RValue> {
+        self.expr_depth += 1;
+        if self.expr_depth > MAX_EXPR_DEPTH {
+            self.expr_depth -= 1;
+            return Err(EXPR_DEPTH_ERROR.into());
+        }
+        let r = self.eval_expr_inner(expr, env);
+        self.expr_depth -= 1;
+        r
+    }
+
+    fn eval_expr_inner(&mut self, expr: &Expr, env: &Env) -> IResult<RValue> {
         match expr {
             Expr::Int(n) => Ok(RValue::Int(*n)),
             Expr::Float(x) => Ok(RValue::Float(*x)),
@@ -245,11 +263,23 @@ impl Interp {
                 args.len()
             ));
         }
+        if self.call_depth >= MAX_CALL_DEPTH {
+            return Err(CALL_DEPTH_ERROR.into());
+        }
+        self.call_depth += 1;
         let scope = new_child(&f.closure);
         for (p, v) in f.decl.params.iter().zip(args) {
             env_define(&scope, p, v);
         }
-        match self.eval_stmts(&f.decl.body, &scope)? {
+        // The callee's body is a fresh expression context, so measure its tree
+        // depth from zero. This matches the compiler, which bounds expression
+        // depth per function body, so deep recursion traps on the call depth
+        // limit in both evaluators rather than one hitting the expression limit.
+        let saved_depth = std::mem::replace(&mut self.expr_depth, 0);
+        let result = self.eval_stmts(&f.decl.body, &scope);
+        self.expr_depth = saved_depth;
+        self.call_depth -= 1;
+        match result? {
             Flow::Return(v) | Flow::Normal(v) => Ok(v),
         }
     }

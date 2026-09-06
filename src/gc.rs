@@ -4,26 +4,43 @@
 //! all marks, marks everything transitively reachable from a set of root
 //! values, then frees any slot that was not marked. Freed slots are recycled by
 //! later allocations. Because marking traverses the child references contained
-//! in each object (a closure's captured upvalues), no reachable object is ever
-//! freed, and every unreachable object is.
+//! in each object (a closure's captured upvalues, and the value inside a closed
+//! upvalue), no reachable object is ever freed, and every unreachable object is.
 
 use crate::value::Value;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct GcRef(pub usize);
 
+/// A captured variable, shared between the enclosing frame and every closure
+/// that captures it. While the variable is still live on the value stack the
+/// upvalue is `Open` and holds the stack index it points at, so reads and writes
+/// go straight through to the live slot. When the slot is about to disappear
+/// (its function returns or its block ends) the upvalue is `Closed`: the current
+/// value is lifted onto the heap and the closure keeps working afterwards. This
+/// is what makes captured mutable state, self-referential local functions, and
+/// two closures sharing one variable behave the same as the reference
+/// interpreter's shared environments.
+#[derive(Debug)]
+pub enum Upvalue {
+    Open(usize),
+    Closed(Value),
+}
+
 /// A runtime closure: an index into the program's function table plus the
-/// values captured from enclosing scopes.
+/// upvalue cells captured from enclosing scopes. Each entry points at an
+/// `Obj::Upvalue`, so capture is by reference, not by value.
 #[derive(Clone, Debug)]
 pub struct Closure {
     pub func: usize,
-    pub upvalues: Vec<Value>,
+    pub upvalues: Vec<GcRef>,
 }
 
 #[derive(Debug)]
 pub enum Obj {
     Str(String),
     Closure(Closure),
+    Upvalue(Upvalue),
 }
 
 impl Obj {
@@ -33,11 +50,13 @@ impl Obj {
             Obj::Str(_) => {}
             Obj::Closure(c) => {
                 for uv in &c.upvalues {
-                    if let Value::Obj(r) = uv {
-                        out.push(*r);
-                    }
+                    out.push(*uv);
                 }
             }
+            // An open upvalue's value lives on the value stack, which the VM
+            // roots directly, so only a closed upvalue owns a value to trace.
+            Obj::Upvalue(Upvalue::Closed(Value::Obj(r))) => out.push(*r),
+            Obj::Upvalue(_) => {}
         }
     }
 }
@@ -174,15 +193,20 @@ mod tests {
     fn marks_through_closure_upvalues() {
         let mut heap = Heap::new();
         let captured = heap.alloc_str("captured".into());
+        let cell = heap.alloc(Obj::Upvalue(Upvalue::Closed(Value::Obj(captured))));
         let closure = heap.alloc(Obj::Closure(Closure {
             func: 0,
-            upvalues: vec![Value::Obj(captured)],
+            upvalues: vec![cell],
         }));
         let _garbage = heap.alloc_str("garbage".into());
 
         let freed = heap.collect(&[Value::Obj(closure)]);
         assert_eq!(freed, 1);
-        assert!(heap.is_live(captured), "reachable via closure upvalue");
+        assert!(heap.is_live(cell), "the upvalue cell is reachable via the closure");
+        assert!(
+            heap.is_live(captured),
+            "reachable via closure -> upvalue cell -> string"
+        );
         assert!(heap.is_live(closure));
     }
 

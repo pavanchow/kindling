@@ -12,7 +12,6 @@ use crate::opcode::*;
 struct Local {
     name: String,
     depth: i32,
-    #[allow(dead_code)]
     is_captured: bool,
 }
 
@@ -21,6 +20,26 @@ struct UpvalueDesc {
     is_local: bool,
     index: u8,
 }
+
+/// Maximum expression tree depth the compiler will walk. A deep left-associative
+/// operator chain such as `1 + 1 + ... + 1` is accepted iteratively by the
+/// parser but produces a deep tree, so both the compiler and the reference
+/// interpreter cap the recursion here (with the same message) rather than
+/// overflowing the stack.
+pub const MAX_EXPR_DEPTH: usize = 2000;
+
+/// Shared error text for an over-deep expression tree, used by the compiler and
+/// the reference interpreter so the two evaluators agree on the trap.
+pub const EXPR_DEPTH_ERROR: &str = "expression nested too deeply";
+
+/// Maximum live call depth. The bytecode VM keeps its frames in a heap `Vec` and
+/// would not overflow, but the reference interpreter calls itself natively, so
+/// both evaluators cap recursion at the same depth (with the same message) to
+/// stay in agreement and to turn runaway recursion into a clean trap.
+pub const MAX_CALL_DEPTH: usize = 1000;
+
+/// Shared error text for exceeding the call depth limit.
+pub const CALL_DEPTH_ERROR: &str = "call stack too deep";
 
 struct FnState {
     proto: FuncProto,
@@ -38,6 +57,7 @@ enum VarLoc {
 pub struct Compiler {
     funcs: Vec<FuncProto>,
     states: Vec<FnState>,
+    expr_depth: usize,
 }
 
 type CResult<T> = Result<T, String>;
@@ -47,6 +67,7 @@ impl Compiler {
         Compiler {
             funcs: Vec::new(),
             states: Vec::new(),
+            expr_depth: 0,
         }
     }
 
@@ -135,8 +156,16 @@ impl Compiler {
         let depth = self.cur().scope_depth;
         while let Some(local) = self.cur().locals.last() {
             if local.depth > depth {
+                let captured = local.is_captured;
                 self.cur().locals.pop();
-                self.emit(OP_POP);
+                // A captured local must be lifted onto the heap before its stack
+                // slot is discarded, so any closure that captured it keeps
+                // seeing the right value. Everything else is just popped.
+                if captured {
+                    self.emit(OP_CLOSE_UPVALUE);
+                } else {
+                    self.emit(OP_POP);
+                }
             } else {
                 break;
             }
@@ -385,6 +414,17 @@ impl Compiler {
     // --- expressions ---
 
     fn compile_expr(&mut self, expr: &Expr) -> CResult<()> {
+        self.expr_depth += 1;
+        if self.expr_depth > MAX_EXPR_DEPTH {
+            self.expr_depth -= 1;
+            return Err(EXPR_DEPTH_ERROR.into());
+        }
+        let r = self.compile_expr_inner(expr);
+        self.expr_depth -= 1;
+        r
+    }
+
+    fn compile_expr_inner(&mut self, expr: &Expr) -> CResult<()> {
         match expr {
             Expr::Int(n) => {
                 let idx = self.add_constant(Constant::Int(*n));
