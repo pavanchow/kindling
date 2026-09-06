@@ -5,8 +5,10 @@ use crate::lexer::{Tok, Token};
 
 /// Maximum nesting depth the recursive-descent parser will accept. Past this it
 /// returns a clean error instead of overflowing the call stack on adversarial
-/// input such as tens of thousands of nested parentheses or blocks.
-const MAX_DEPTH: usize = 800;
+/// input such as tens of thousands of nested parentheses or blocks. The bound is
+/// deliberately conservative so parsing stays safe on a small (a couple of
+/// megabytes) thread stack, not just the process main stack.
+const MAX_DEPTH: usize = 120;
 
 pub struct Parser {
     toks: Vec<Token>,

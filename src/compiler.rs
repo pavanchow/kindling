@@ -25,8 +25,9 @@ struct UpvalueDesc {
 /// operator chain such as `1 + 1 + ... + 1` is accepted iteratively by the
 /// parser but produces a deep tree, so both the compiler and the reference
 /// interpreter cap the recursion here (with the same message) rather than
-/// overflowing the stack.
-pub const MAX_EXPR_DEPTH: usize = 2000;
+/// overflowing the stack. Kept conservative so evaluation stays safe on a small
+/// thread stack.
+pub const MAX_EXPR_DEPTH: usize = 250;
 
 /// Shared error text for an over-deep expression tree, used by the compiler and
 /// the reference interpreter so the two evaluators agree on the trap.
@@ -35,8 +36,11 @@ pub const EXPR_DEPTH_ERROR: &str = "expression nested too deeply";
 /// Maximum live call depth. The bytecode VM keeps its frames in a heap `Vec` and
 /// would not overflow, but the reference interpreter calls itself natively, so
 /// both evaluators cap recursion at the same depth (with the same message) to
-/// stay in agreement and to turn runaway recursion into a clean trap.
-pub const MAX_CALL_DEPTH: usize = 1000;
+/// stay in agreement and to turn runaway recursion into a clean trap. A
+/// tree-walking call consumes a real chunk of native stack (more so in an
+/// unoptimized build), so the bound is set low enough to stay safe on a small
+/// thread stack rather than assuming the larger process main stack.
+pub const MAX_CALL_DEPTH: usize = 120;
 
 /// Shared error text for exceeding the call depth limit.
 pub const CALL_DEPTH_ERROR: &str = "call stack too deep";

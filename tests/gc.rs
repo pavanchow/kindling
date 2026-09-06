@@ -105,3 +105,44 @@ fn vm_result_is_correct_under_gc_stress() {
     let normal = run_source(src).unwrap();
     assert_eq!(normal.value, kindling::Outcome::Str(expected));
 }
+
+#[test]
+fn closures_survive_gc_stress() {
+    // Closures capture live, mutable upvalue cells while a churn of short-lived
+    // strings forces collection on nearly every allocation. If the collector
+    // ever freed a live upvalue cell (a use-after-free) the captured counter
+    // would be wrong or the run would panic. The result must match the reference
+    // interpreter, which does not share the VM's heap.
+    let src = r#"
+        fn make() {
+            let n = 0;
+            fn step() {
+                let junk = "tmp" + "junk";
+                n = n + len(junk);
+                return n;
+            }
+            return step;
+        }
+        let s = make();
+        let total = 0;
+        let i = 0;
+        while (i < 40) {
+            total = s();
+            i = i + 1;
+        }
+        return total;
+    "#;
+
+    let program = compile_source(src).unwrap();
+    let mut vm = Vm::new();
+    vm.set_gc_stress(true);
+    let value = vm.interpret(&program).unwrap();
+    let stressed = vm.to_outcome(value);
+
+    let reference = kindling::eval_reference(src).unwrap();
+    assert_eq!(
+        stressed, reference.value,
+        "closure result under GC stress must match the reference interpreter"
+    );
+    assert_eq!(stressed, kindling::Outcome::Int(40 * 7));
+}
