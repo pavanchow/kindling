@@ -2,7 +2,7 @@
 
 use crate::chunk::{Constant, Program};
 use crate::compiler::{CALL_DEPTH_ERROR, MAX_CALL_DEPTH};
-use crate::gc::{Closure, GcRef, Heap, Obj, Upvalue};
+use crate::gc::{Closure, GcRef, Heap, Native, Obj, Upvalue};
 use crate::opcode::*;
 use crate::value::{Outcome, Value};
 
@@ -110,6 +110,10 @@ impl Vm {
 
     /// Interpret a whole program, returning the value it produces.
     pub fn interpret(&mut self, program: &Program) -> Result<Value, String> {
+        for native in Native::ALL {
+            let r = self.heap.alloc(Obj::Native(native));
+            self.globals.insert(native.name().to_string(), Value::Obj(r));
+        }
         let main_closure = self.heap.alloc(Obj::Closure(Closure {
             func: program.main,
             upvalues: Vec::new(),
@@ -341,6 +345,7 @@ impl Vm {
         };
         let func = match self.heap.get(r) {
             Obj::Closure(c) => c.func,
+            Obj::Native(n) => return self.call_native(*n, argc),
             _ => return Err("can only call functions".into()),
         };
         let proto = &program.funcs[func];
@@ -360,6 +365,54 @@ impl Vm {
             ip: 0,
             slot_base,
         });
+        Ok(())
+    }
+
+    /// Run a builtin: consume its arguments and the callee from the stack and
+    /// leave its result in their place, exactly as returning from a normal call
+    /// would. Semantics mirror the reference interpreter's `apply_native`.
+    fn call_native(&mut self, native: Native, argc: usize) -> Result<(), String> {
+        if argc != native.arity() {
+            return Err(format!(
+                "{} expects {} arguments, got {}",
+                native.name(),
+                native.arity(),
+                argc
+            ));
+        }
+        let args: Vec<Value> = (0..argc).map(|i| self.peek(argc - 1 - i)).collect();
+        let result = match native {
+            Native::Abs => match args[0] {
+                Value::Int(n) => Value::Int(n.wrapping_abs()),
+                Value::Float(x) => Value::Float(x.abs()),
+                _ => return Err("abs expects a number".into()),
+            },
+            Native::Min | Native::Max => {
+                let want_max = native == Native::Max;
+                match (args[0], args[1]) {
+                    (Value::Int(a), Value::Int(b)) => {
+                        Value::Int(if (a >= b) == want_max { a } else { b })
+                    }
+                    _ => match (num(args[0]), num(args[1])) {
+                        (Some(a), Some(b)) => {
+                            Value::Float(if want_max { a.max(b) } else { a.min(b) })
+                        }
+                        _ => return Err("min and max expect numbers".into()),
+                    },
+                }
+            }
+            Native::Len => match args[0] {
+                Value::Obj(r) => match self.heap.get(r) {
+                    Obj::Str(s) => Value::Int(s.chars().count() as i64),
+                    _ => return Err("len expects a string".into()),
+                },
+                _ => return Err("len expects a string".into()),
+            },
+        };
+        for _ in 0..argc + 1 {
+            self.pop();
+        }
+        self.push(result);
         Ok(())
     }
 
@@ -532,6 +585,7 @@ impl Vm {
             Value::Obj(r) => match self.heap.get(r) {
                 Obj::Str(s) => s.clone(),
                 Obj::Closure(c) => format!("<fn {}>", c.func),
+                Obj::Native(n) => format!("<native {}>", n.name()),
                 // Upvalue cells never surface as user values.
                 Obj::Upvalue(_) => "<upvalue>".to_string(),
             },
@@ -548,6 +602,7 @@ impl Vm {
             Value::Obj(r) => match self.heap.get(r) {
                 Obj::Str(s) => Outcome::Str(s.clone()),
                 Obj::Closure(_) => Outcome::Func,
+                Obj::Native(_) => Outcome::Func,
                 Obj::Upvalue(_) => Outcome::Nil,
             },
         }

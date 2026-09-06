@@ -159,10 +159,37 @@ impl Gen {
                 let inner = self.expr(depth - 1);
                 format!("(-{inner})")
             }
+            6 => self.builtin_expr(depth - 1),
             _ => {
                 let l = self.expr(depth - 1);
                 let r = self.expr(depth - 1);
                 format!("({l} + {r})")
+            }
+        }
+    }
+
+    /// A call to one of the standard-library builtins, producing a numeric
+    /// value. Both evaluators implement these identically, so the differential
+    /// gate covers them like any other expression.
+    fn builtin_expr(&mut self, depth: usize) -> String {
+        match self.rng.below(4) {
+            0 => {
+                let x = self.expr(depth);
+                format!("abs({x})")
+            }
+            1 => {
+                let a = self.expr(depth);
+                let b = self.expr(depth);
+                format!("min({a}, {b})")
+            }
+            2 => {
+                let a = self.expr(depth);
+                let b = self.expr(depth);
+                format!("max({a}, {b})")
+            }
+            _ => {
+                let s = self.string_expr(depth.min(2));
+                format!("len({s})")
             }
         }
     }

@@ -16,6 +16,7 @@ use std::rc::Rc;
 
 use crate::ast::{BinOp, Expr, FnDecl, Stmt, UnOp};
 use crate::compiler::{CALL_DEPTH_ERROR, EXPR_DEPTH_ERROR, MAX_CALL_DEPTH, MAX_EXPR_DEPTH};
+use crate::gc::Native;
 use crate::value::Outcome;
 use crate::vm::format_float;
 
@@ -27,6 +28,7 @@ pub enum RValue {
     Float(f64),
     Str(Rc<str>),
     Fn(Rc<FnObj>),
+    Native(Native),
 }
 
 pub struct FnObj {
@@ -116,6 +118,9 @@ impl Interp {
 
     pub fn run(&mut self, program: &[Stmt]) -> IResult<RValue> {
         let global = new_global();
+        for native in Native::ALL {
+            env_define(&global, native.name(), RValue::Native(native));
+        }
         match self.eval_stmts(program, &global)? {
             Flow::Return(v) | Flow::Normal(v) => Ok(v),
         }
@@ -253,6 +258,7 @@ impl Interp {
     fn call(&mut self, callee: RValue, args: Vec<RValue>) -> IResult<RValue> {
         let f = match callee {
             RValue::Fn(f) => f,
+            RValue::Native(n) => return apply_native(n, &args),
             _ => return Err("can only call functions".into()),
         };
         if args.len() != f.decl.params.len() {
@@ -283,6 +289,46 @@ impl Interp {
             Flow::Return(v) | Flow::Normal(v) => Ok(v),
         }
     }
+}
+
+/// Evaluate a builtin. This is the reference-interpreter twin of the VM's
+/// `call_native`; the two are written independently but must agree, which the
+/// differential gate enforces.
+fn apply_native(native: Native, args: &[RValue]) -> IResult<RValue> {
+    if args.len() != native.arity() {
+        return Err(format!(
+            "{} expects {} arguments, got {}",
+            native.name(),
+            native.arity(),
+            args.len()
+        ));
+    }
+    let result = match native {
+        Native::Abs => match &args[0] {
+            RValue::Int(n) => RValue::Int(n.wrapping_abs()),
+            RValue::Float(x) => RValue::Float(x.abs()),
+            _ => return Err("abs expects a number".into()),
+        },
+        Native::Min | Native::Max => {
+            let want_max = native == Native::Max;
+            match (&args[0], &args[1]) {
+                (RValue::Int(a), RValue::Int(b)) => {
+                    RValue::Int(if (a >= b) == want_max { *a } else { *b })
+                }
+                _ => match (num(&args[0]), num(&args[1])) {
+                    (Some(a), Some(b)) => {
+                        RValue::Float(if want_max { a.max(b) } else { a.min(b) })
+                    }
+                    _ => return Err("min and max expect numbers".into()),
+                },
+            }
+        }
+        Native::Len => match &args[0] {
+            RValue::Str(s) => RValue::Int(s.chars().count() as i64),
+            _ => return Err("len expects a string".into()),
+        },
+    };
+    Ok(result)
 }
 
 fn is_truthy(v: &RValue) -> bool {
@@ -401,6 +447,7 @@ fn display(v: &RValue) -> String {
         RValue::Float(x) => format_float(*x),
         RValue::Str(s) => s.to_string(),
         RValue::Fn(f) => format!("<fn {}>", f.decl.name),
+        RValue::Native(n) => format!("<native {}>", n.name()),
     }
 }
 
@@ -413,6 +460,7 @@ pub fn to_outcome(v: &RValue) -> Outcome {
         RValue::Float(x) => Outcome::Float(*x),
         RValue::Str(s) => Outcome::Str(s.to_string()),
         RValue::Fn(_) => Outcome::Func,
+        RValue::Native(_) => Outcome::Func,
     }
 }
 

@@ -36,11 +36,46 @@ pub struct Closure {
     pub upvalues: Vec<GcRef>,
 }
 
+/// A built-in function implemented in Rust rather than in Kindling bytecode.
+/// Both evaluators expose the same set under the same global names and compute
+/// identical results, so the differential gate covers them like any other call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Native {
+    Abs,
+    Min,
+    Max,
+    Len,
+}
+
+impl Native {
+    /// The global name this builtin is bound to.
+    pub fn name(self) -> &'static str {
+        match self {
+            Native::Abs => "abs",
+            Native::Min => "min",
+            Native::Max => "max",
+            Native::Len => "len",
+        }
+    }
+
+    /// The number of arguments this builtin takes.
+    pub fn arity(self) -> usize {
+        match self {
+            Native::Abs | Native::Len => 1,
+            Native::Min | Native::Max => 2,
+        }
+    }
+
+    /// Every builtin, for registration into the global namespace.
+    pub const ALL: [Native; 4] = [Native::Abs, Native::Min, Native::Max, Native::Len];
+}
+
 #[derive(Debug)]
 pub enum Obj {
     Str(String),
     Closure(Closure),
     Upvalue(Upvalue),
+    Native(Native),
 }
 
 impl Obj {
@@ -57,6 +92,7 @@ impl Obj {
             // roots directly, so only a closed upvalue owns a value to trace.
             Obj::Upvalue(Upvalue::Closed(Value::Obj(r))) => out.push(*r),
             Obj::Upvalue(_) => {}
+            Obj::Native(_) => {}
         }
     }
 }
