@@ -60,19 +60,33 @@ fn fib(n) {
   return fib(n - 1) + fib(n - 2);
 }
 
-// closures capture surrounding values
-fn make_adder(k) {
-  fn adder(n) { return n + k; }
-  return adder;
+// closures capture variables by reference, so captured state stays shared
+fn make_counter() {
+  let n = 0;
+  fn step() { n = n + 1; return n; }
+  return step;
 }
-let add10 = make_adder(10);
-print add10(32);
+let next = make_counter();
+print next(); // 1
+print next(); // 2
+
+// builtins: abs, min, max, len
+print abs(-7);            // 7
+print min(3, 9);          // 3
+print max(2.5, 4);        // 4
+print len("kindling");    // 8
 
 // the program produces the value of its last statement, or an explicit return
 return fib(20);
 ```
 
-Operators are the four usual arithmetic operators plus modulo, the six comparisons, logical not, and numeric negation. The plus operator also concatenates two strings. Integer division and modulo by zero are runtime errors. Only nil and false are falsey.
+Operators are the four usual arithmetic operators plus modulo, the six comparisons, logical not, and numeric negation. The plus operator also concatenates two strings. Integer arithmetic wraps on overflow, and integer division and modulo by zero are runtime errors. Only nil and false are falsey.
+
+Closures capture the actual variable, not a snapshot of its value. A closure that reassigns a captured variable is seen by the enclosing scope, two closures over one variable share it, and a nested function can call itself. A call must pass exactly the number of arguments the function declares.
+
+The standard library is a handful of builtins bound as globals. `abs` returns the magnitude of a number, `min` and `max` take two numbers, and `len` returns the character count of a string. Every builtin is implemented in both evaluators and covered by the correctness gate.
+
+To keep evaluation safe on a modest stack, source nesting, expression tree depth, and live call depth are each capped, so pathological input is a clean error rather than a crash.
 
 ## The API
 
@@ -104,7 +118,7 @@ Individual stages (`lexer`, `parser`, `compiler`, `vm`, `interp`, `gc`, `chunk`,
 
 Correctness is enforced by three machine checkable gates that run as tests. See DESIGN.md for why each gate proves what it claims.
 
-1. Differential testing. For hundreds of randomly generated programs, the bytecode VM result must equal the result of a completely independent tree walking reference interpreter over the same AST. Two independent evaluators agreeing is the oracle. Program count is set with the `KINDLING_FUZZ_OPS` environment variable.
+1. Differential testing. For hundreds of randomly generated programs, the bytecode VM and a completely independent tree walking reference interpreter must agree on the whole outcome, the same value on success or the same error on a trap such as division by zero or exceeding the call depth. Two independent evaluators agreeing is the oracle. The generator exercises closures that capture mutable state, mutual recursion, string operations, and wrapping arithmetic, and dedicated regression cases lock in the closure, builtin, and adversarial input behavior. Program count is set with the `KINDLING_FUZZ_OPS` environment variable.
 
 2. Round trip integrity. Disassembling and reassembling a program reproduces it exactly, serializing and deserializing a program reproduces it exactly, and running a program through the binary round trip gives the same answer as running it directly.
 
