@@ -3,8 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kindling: a from-scratch bytecode language and VM in Rust</title>
+<meta name="description" content="Kindling by Pavan Nallamothu: a small, from-scratch, dynamically typed programming language with a real bytecode compiler, a stack based virtual machine, and a mark and sweep garbage collector, written in pure Rust with zero dependencies. Watch the whole pipeline run in your browser, source to tokens to AST to bytecode to a stepping VM.">
+<meta name="author" content="Pavan Nallamothu (pavanchow)">
+<link rel="canonical" href="https://pavanchow.github.io/kindling/">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
-<title>Kindling Playground</title>
+<link rel="author" href="https://github.com/pavanchow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Kindling: a from-scratch bytecode language and VM in Rust">
+<meta property="og:description" content="A dynamically typed bytecode language with its own compiler, stack VM, and mark and sweep collector, zero dependencies. Watch source become tokens, an AST, bytecode, then step the VM live. By Pavan Nallamothu.">
+<meta property="og:url" content="https://pavanchow.github.io/kindling/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kindling: a from-scratch bytecode language and VM in Rust">
+<meta name="twitter:description" content="Lex, parse, compile, and run a tiny language in the page. Step the VM one instruction at a time.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Kindling","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, macOS, Windows","description":"Kindling is a small, from-scratch, dynamically typed programming language with a real bytecode compiler, a stack based virtual machine, and a mark and sweep garbage collector, written in pure Rust with zero external dependencies. It ships a CLI that can run a program, disassemble it, or start a REPL.","url":"https://pavanchow.github.io/kindling/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/kindling","license":"https://opensource.org/licenses/MIT"}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]}
+</script>
 <style>
   /* Base theme. Light values live here in :root and are consumed by every rule. */
   :root {
@@ -23,6 +40,7 @@
     --code: #1d1d1f;
     --hl: #fff3c4;
     --shadow: rgba(0, 0, 0, 0.06);
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   }
 
   * { box-sizing: border-box; }
@@ -274,18 +292,69 @@
     }
     .bcline.active { color: #ffffff; }
   }
+
+  /* cocoon-grade page chrome, layered over the existing playground styles */
+  html { scroll-behavior: smooth; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  nav { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--border); }
+  nav .row { display: flex; justify-content: space-between; align-items: center; height: 56px; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  nav .brand { display: flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 650; letter-spacing: -0.01em; color: var(--text); }
+  nav .brand .gem { width: 16px; height: 16px; border-radius: 6px; background: linear-gradient(135deg, #4da3ff, #0071e3); }
+  nav .links { display: flex; gap: 24px; align-items: center; }
+  nav .links a { color: var(--text); font-size: 14.5px; }
+  @media (max-width: 640px) { nav .links a:not(.gh) { display: none; } }
+  .hero { padding: 72px 0 20px; text-align: center; }
+  .hero .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); display: block; margin-top: 12px; }
+  .hero h1 { font-size: clamp(38px, 7vw, 64px); line-height: 1.05; letter-spacing: -0.035em; font-weight: 680; margin: 16px 0 0; }
+  .hero p.sub { max-width: 680px; margin: 22px auto 0; font-size: clamp(17px, 2.1vw, 21px); color: var(--muted); }
+  .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+  .btn { display: inline-block; padding: 13px 26px; border-radius: 999px; font-size: 15px; font-weight: 600; border: 1px solid var(--text); color: var(--text); }
+  .btn:hover { opacity: 0.75; text-decoration: none; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .stage { max-width: 1180px; margin: 28px auto 0; }
+  details.howto { max-width: 680px; margin: 0 auto 6px; border: 1px solid var(--border); border-radius: 14px; padding: 2px 18px; background: var(--panel-2); text-align: left; }
+  details.howto > summary { cursor: pointer; font-weight: 600; padding: 14px 0; list-style: none; color: var(--text); }
+  details.howto > summary::-webkit-details-marker { display: none; }
+  details.howto > summary::before { content: "\25B8"; display: inline-block; margin-right: 8px; color: var(--accent); transition: transform 0.15s; }
+  details.howto[open] > summary::before { transform: rotate(90deg); }
+  details.howto ol { margin: 8px 0 12px; padding-left: 22px; }
+  details.howto li { margin: 5px 0; color: var(--muted); }
+  details.howto p { margin: 0 0 14px; color: var(--muted); }
+  .narrative { padding: 72px 0; border-top: 1px solid var(--border); }
+  .narrative h2 { font-size: clamp(26px, 4.2vw, 38px); line-height: 1.12; letter-spacing: -0.025em; font-weight: 660; text-align: center; max-width: 780px; margin: 0 auto; }
+  .narrative .lead { max-width: 680px; margin: 18px auto 0; text-align: center; color: var(--muted); }
+  .narrative pre { background: #15161c; color: #ececf4; border-radius: 14px; padding: 20px 22px; font-family: var(--mono); font-size: 13px; line-height: 1.6; overflow-x: auto; max-width: 760px; margin: 26px auto 0; white-space: pre; }
+  .narrative pre .cm { color: #8a8d9a; }
+  .narrative pre .g { color: #7fd6a0; }
+  footer { padding: 60px 0; border-top: 1px solid var(--border); text-align: center; color: var(--muted); }
+  footer .name { color: var(--text); font-weight: 600; }
+  footer p + p { margin-top: 10px; }
 </style>
 </head>
 <body>
-<header>
-  <img src="logo.svg" alt="Kindling logo" width="72" height="72">
-  <h1>Kindling Playground</h1>
-  <p>A from scratch bytecode language, lexed, parsed, compiled, and run right in the page. Source at <a href="https://github.com/pavanchow/kindling" target="_blank" rel="noopener">github.com/pavanchow/kindling</a></p>
-</header>
 
-<main>
-  <section class="howto">
-    <details>
+<noscript><div class="wrap" style="padding:40px 24px;color:var(--muted)">Kindling is a small, from-scratch, dynamically typed programming language with a real bytecode compiler, a stack based virtual machine, and a mark and sweep garbage collector, written in pure Rust with zero dependencies. Source: <a href="https://github.com/pavanchow/kindling">github.com/pavanchow/kindling</a>.</div></noscript>
+
+<nav><div class="row">
+  <div class="brand"><span class="gem"></span>Kindling</div>
+  <div class="links"><a href="#sim">Playground</a><a href="#how">How it works</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/kindling">GitHub</a></div>
+</div></nav>
+
+<div class="hero">
+  <img src="logo.svg" alt="Kindling logo" width="72" height="72">
+  <span class="eyebrow">Rust · bytecode language from scratch</span>
+  <h1>Watch code<br>become bytecode.</h1>
+  <p class="sub">Kindling is a small, dynamically typed language with a real bytecode compiler, a stack based virtual machine, and a mark and sweep garbage collector, written in pure Rust with zero dependencies. Type a program and watch the whole pipeline run in the page: source to tokens to a syntax tree to bytecode, then step the VM one instruction at a time while the value stack, call frames, and collector update live.</p>
+  <div class="cta-row">
+    <a class="btn primary" href="#sim">Open the playground</a>
+    <a class="btn" href="https://github.com/pavanchow/kindling">View on GitHub</a>
+  </div>
+</div>
+
+<div class="wrap">
+  <details class="howto">
     <summary>How to use this playground</summary>
     <ol>
       <li>Type a program in the editor, or pick one of the sample buttons to load it.</li>
@@ -297,9 +366,11 @@
       <li>Press Run GC to allocate demo heap objects, mark everything reachable from the roots in green, then sweep the unreachable objects in red.</li>
     </ol>
     <p>A quick tour. Kindling turns your text into tokens, then into a tree, then into a stack machine program. Run gives you the fast answer. Step is the slow motion view where you can see each push and pop as the machine works. Run GC shows how a mark and sweep collector keeps live objects and frees the rest.</p>
-    </details>
-  </section>
+  </details>
+</div>
 
+<main>
+  <div class="stage" id="sim">
   <div class="samples">
     <span>Samples</span>
     <button data-sample="while">While loop sum</button>
@@ -355,7 +426,42 @@
       </div>
     </div>
   </div>
+  </div>
 </main>
+
+<section class="narrative" id="how"><div class="wrap">
+  <h2>Two evaluators, checked against each other</h2>
+  <p class="lead">Kindling's correctness rests on a differential gate. For hundreds of randomly generated programs, the bytecode VM and a completely independent tree walking interpreter must agree on the whole outcome, the same value on success or the same error on a trap such as division by zero or exceeding the call depth. Two independent evaluators agreeing is the oracle.</p>
+  <pre><span class="cm"># round trip integrity, enforced on every build</span>
+assemble(disassemble(program))      == program
+deserialize(serialize(program))     == program
+run(deserialize(serialize(program))) == run(program)
+
+<span class="cm"># and the collector: a collection frees exactly the unreachable objects,</span>
+<span class="cm"># keeps every reachable one, and never frees a live object mid execution</span>
+<span class="g">gc: mark from roots, sweep the rest, checked on a known reachability graph</span></pre>
+  <p class="lead" style="margin-top:24px">The pipeline you drive above is the same shape the runtime uses: a hand written lexer, a recursive descent parser, a single pass compiler that emits its own opcode set, and a clox style stack VM with call frames, globals, locals, closures, and a precise garbage collector.</p>
+</div></section>
+
+<section class="narrative" id="use"><div class="wrap">
+  <h2>Use it</h2>
+  <pre><span class="cm"># build the runtime and CLI (pure Rust, zero dependencies)</span>
+cargo build --release
+
+<span class="cm"># run a program, disassemble it, or start a REPL</span>
+./target/release/kindling run examples/factorial.kdl
+./target/release/kindling disasm examples/factorial.kdl
+./target/release/kindling repl
+
+<span class="cm"># run the tests, including the differential correctness gate</span>
+cargo test
+KINDLING_FUZZ_OPS=4000 cargo test --release</pre>
+</div></section>
+
+<footer><div class="wrap">
+  <p>Kindling is MIT licensed. Source, tests, and design notes are on <a href="https://github.com/pavanchow/kindling">GitHub</a>.</p>
+  <p>By <span class="name">Pavan Nallamothu</span>.</p>
+</div></footer>
 
 <script>
 (function () {
