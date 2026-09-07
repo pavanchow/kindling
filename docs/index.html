@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
 <title>Kindling Playground</title>
 <style>
   /* Base theme. Light values live here in :root and are consumed by every rule. */
@@ -277,13 +278,15 @@
 </head>
 <body>
 <header>
+  <img src="logo.svg" alt="Kindling logo" width="72" height="72">
   <h1>Kindling Playground</h1>
   <p>A from scratch bytecode language, lexed, parsed, compiled, and run right in the page. Source at <a href="https://github.com/pavanchow/kindling" target="_blank" rel="noopener">github.com/pavanchow/kindling</a></p>
 </header>
 
 <main>
   <section class="howto">
-    <h2>How to use this playground</h2>
+    <details>
+    <summary>How to use this playground</summary>
     <ol>
       <li>Type a program in the editor, or pick one of the sample buttons to load it.</li>
       <li>Press Run to lex, parse, compile, and execute the whole program at once.</li>
@@ -294,6 +297,7 @@
       <li>Press Run GC to allocate demo heap objects, mark everything reachable from the roots in green, then sweep the unreachable objects in red.</li>
     </ol>
     <p>A quick tour. Kindling turns your text into tokens, then into a tree, then into a stack machine program. Run gives you the fast answer. Step is the slow motion view where you can see each push and pop as the machine works. Run GC shows how a mark and sweep collector keeps live objects and frees the rest.</p>
+    </details>
   </section>
 
   <div class="samples">

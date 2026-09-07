@@ -1,3 +1,5 @@
+<img src="docs/logo.svg" alt="Kindling logo" width="96">
+
 # Kindling
 
 Kindling is a small, from-scratch, dynamically typed programming language with a real bytecode compiler, a stack based virtual machine, and a mark and sweep garbage collector. It is written in pure Rust with zero external dependencies on the 2021 edition.
