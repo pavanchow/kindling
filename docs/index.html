@@ -6,6 +6,7 @@
 <title>Kindling: a from-scratch bytecode language and VM in Rust</title>
 <meta name="description" content="Kindling by Pavan Nallamothu: a small, from-scratch, dynamically typed programming language with a real bytecode compiler, a stack based virtual machine, and a mark and sweep garbage collector, written in pure Rust with zero dependencies. Watch the whole pipeline run in your browser, source to tokens to AST to bytecode to a stepping VM.">
 <meta name="author" content="Pavan Nallamothu (pavanchow)">
+<meta name="keywords" content="bytecode VM, bytecode compiler, stack virtual machine, mark and sweep garbage collector, clox, Crafting Interpreters, dynamically typed language, tree walking interpreter, differential testing, Rust, zero dependencies, programming language implementation, Pavan Nallamothu, pavanchow">
 <link rel="canonical" href="https://pavanchow.github.io/kindling/">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="author" href="https://github.com/pavanchow">
@@ -17,7 +18,7 @@
 <meta name="twitter:title" content="Kindling: a from-scratch bytecode language and VM in Rust">
 <meta name="twitter:description" content="Lex, parse, compile, and run a tiny language in the page. Step the VM one instruction at a time.">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Kindling","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, macOS, Windows","description":"Kindling is a small, from-scratch, dynamically typed programming language with a real bytecode compiler, a stack based virtual machine, and a mark and sweep garbage collector, written in pure Rust with zero external dependencies. It ships a CLI that can run a program, disassemble it, or start a REPL.","url":"https://pavanchow.github.io/kindling/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/kindling","license":"https://opensource.org/licenses/MIT"}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Kindling","applicationCategory":"DeveloperApplication","softwareVersion":"0.1.0","operatingSystem":"Linux, macOS, Windows","description":"Kindling is a small, from-scratch, dynamically typed programming language with a real bytecode compiler, a stack based virtual machine, and a mark and sweep garbage collector, written in pure Rust with zero external dependencies. It ships a CLI that can run a program, disassemble it, or start a REPL.","url":"https://pavanchow.github.io/kindling/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/kindling","license":"https://opensource.org/licenses/MIT"}
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]}
@@ -331,6 +332,23 @@
   footer { padding: 60px 0; border-top: 1px solid var(--border); text-align: center; color: var(--muted); }
   footer .name { color: var(--text); font-weight: 600; }
   footer p + p { margin-top: 10px; }
+
+  /* nav version badge, enrichment components */
+  nav .links .ver { color: var(--muted); font-family: var(--mono); font-size: 12px; border: 1px solid var(--border); border-radius: 980px; padding: 2px 9px; }
+  .eyebrow-c { display: block; text-align: center; font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); }
+  .snipx { background: #15161c; color: #ececf4; border-radius: 14px; padding: 20px 22px; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; overflow-x: auto; max-width: 720px; margin: 30px auto 0; white-space: pre; }
+  .snipx .cm { color: #8a8d9a; } .snipx .k { color: #7fd6a0; } .snipx .a { color: #6fb2ff; }
+  .prows { max-width: 820px; margin: 40px auto 0; }
+  .prows .r { display: grid; grid-template-columns: minmax(150px, 1fr) 2fr; gap: 12px 36px; padding: 22px 0; border-top: 1px solid var(--border); }
+  .prows .r:first-child { border-top: none; }
+  .prows .r b { font-size: 17px; } .prows .r p { color: var(--muted); margin: 0; }
+  @media (max-width: 640px) { .prows .r { grid-template-columns: 1fr; gap: 6px; } }
+  .pgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; max-width: 900px; margin: 44px auto 0; }
+  @media (max-width: 640px) { .pgrid { grid-template-columns: 1fr; } }
+  .pcard { background: var(--panel-2); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+  .pcard h3 { margin: 0 0 8px; font-family: var(--mono); font-size: 15px; display: flex; align-items: center; gap: 10px; color: var(--text); }
+  .pcard p { color: var(--muted); font-size: 14.5px; margin: 0; }
+  .ptag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.04em; background: var(--accent-2); color: var(--accent); }
 </style>
 </head>
 <body>
@@ -339,7 +357,7 @@
 
 <nav><div class="row">
   <div class="brand"><img src="logo.svg" class="brandlogo" alt="" width="22" height="22">Kindling</div>
-  <div class="links"><a href="#sim">Playground</a><a href="#how">How it works</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/kindling">GitHub</a></div>
+  <div class="links"><a href="#sim">Playground</a><a href="#differs">How it differs</a><a href="#parts">Building blocks</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/kindling">GitHub</a><span class="ver">v0.1.0</span></div>
 </div></nav>
 
 <div class="hero">
@@ -429,6 +447,39 @@
   </div>
 </main>
 
+<section class="narrative"><div class="wrap">
+  <span class="eyebrow-c">Source in, bytecode out</span>
+  <h2 style="margin-top:16px">Bytecode you can read.</h2>
+  <p class="lead">The same compiler the playground runs also backs the CLI. Point <code>kindling disasm</code> at a file and it prints the constant pool and the instruction stream, offset by offset, in a text form that assembles straight back into the identical program.</p>
+  <div class="snipx"><span class="cm"># kindling disasm demo.kdl</span>
+<span class="cm"># let x = 6; let y = x * 7; print "answer:"; print y; return y;</span>
+program main=0 funcs=1
+
+func 0
+  name "main"
+  arity 0
+  upvals 0
+  constants 5
+    0 str "x"
+    1 int 6
+    2 str "y"
+    3 int 7
+    4 str "answer:"
+  code
+    0000 <span class="k">CONST</span> 1
+    0003 <span class="k">DEF_GLOBAL</span> 0
+    0006 <span class="k">GET_GLOBAL</span> 0
+    0009 <span class="k">CONST</span> 3
+    0012 <span class="k">MUL</span>
+    0013 <span class="k">DEF_GLOBAL</span> 2
+    0016 <span class="k">CONST</span> 4
+    0019 <span class="k">PRINT</span>
+    0020 <span class="k">GET_GLOBAL</span> 2
+    0023 <span class="k">PRINT</span>
+    0024 <span class="k">GET_GLOBAL</span> 2
+    0027 <span class="k">RETURN</span></div>
+</div></section>
+
 <section class="narrative" id="how"><div class="wrap">
   <h2>Two evaluators, checked against each other</h2>
   <p class="lead">Kindling's correctness rests on a differential gate. For hundreds of randomly generated programs, the bytecode VM and a completely independent tree walking interpreter must agree on the whole outcome, the same value on success or the same error on a trap such as division by zero or exceeding the call depth. Two independent evaluators agreeing is the oracle.</p>
@@ -440,11 +491,41 @@ run(deserialize(serialize(program))) == run(program)
 <span class="cm"># and the collector: a collection frees exactly the unreachable objects,</span>
 <span class="cm"># keeps every reachable one, and never frees a live object mid execution</span>
 <span class="g">gc: mark from roots, sweep the rest, checked on a known reachability graph</span></pre>
-  <p class="lead" style="margin-top:24px">The pipeline you drive above is the same shape the runtime uses: a hand written lexer, a recursive descent parser, a single pass compiler that emits its own opcode set, and a clox style stack VM with call frames, globals, locals, closures, and a precise garbage collector.</p>
+</div></section>
+
+<section class="narrative" id="differs"><div class="wrap">
+  <h2>How it differs</h2>
+  <p class="lead">Kindling lives in the space between a teaching tree walker and a production runtime you cannot read.</p>
+  <div class="prows">
+    <div class="r"><b>Crafting Interpreters' clox</b><p>The C bytecode VM from the book. Kindling follows the same clox shape, a single pass compiler, a stack machine, closures with upvalues, and a mark and sweep collector, rewritten in safe Rust with zero dependencies.</p></div>
+    <div class="r"><b>Lua, Wren</b><p>Small, mature, embeddable bytecode languages written in C and tuned for speed. Kindling is smaller and slower, and spends that budget on staying readable end to end and on a machine checkable correctness gate instead.</p></div>
+    <div class="r"><b>Kindling</b><p>A genuine bytecode runtime kept small enough to read in an afternoon: two independent evaluators checked against each other, a lossless text and binary bytecode format, and a sandbox with no file, network, or system access from inside a program.</p></div>
+  </div>
+</div></section>
+
+<section class="narrative" id="parts"><div class="wrap">
+  <span class="eyebrow-c">The parts that matter</span>
+  <h2 style="margin-top:16px">A whole language runtime, in parts you can hold.</h2>
+  <div class="pgrid">
+    <div class="pcard"><h3><span class="ptag">front end</span> Lexer</h3><p>A hand written scanner that turns source text into a token stream.</p></div>
+    <div class="pcard"><h3><span class="ptag">front end</span> Parser</h3><p>Recursive descent from tokens to an AST, with source nesting and expression depth capped so pathological input is a clean error, not a crash.</p></div>
+    <div class="pcard"><h3><span class="ptag">compiler</span> Single pass compiler</h3><p>Walks the AST once and emits Kindling's own opcodes, resolving globals, locals, and upvalues as it goes.</p></div>
+    <div class="pcard"><h3><span class="ptag">bytecode</span> Opcode set</h3><p>Thirty three opcodes covering constants, globals, locals, upvalues, jumps, calls, closures, and print.</p></div>
+    <div class="pcard"><h3><span class="ptag">runtime</span> Stack VM</h3><p>A clox style machine with call frames, globals, locals, and closures that capture the variable by reference, not a snapshot.</p></div>
+    <div class="pcard"><h3><span class="ptag">oracle</span> Reference interpreter</h3><p>A completely independent tree walker, run against the VM on every build so any disagreement fails the gate.</p></div>
+    <div class="pcard"><h3><span class="ptag">memory</span> Mark and sweep GC</h3><p>A precise collector: mark from the roots, sweep the rest, verified on a known reachability graph and under allocation stress.</p></div>
+    <div class="pcard"><h3><span class="ptag">format</span> Text and binary bytecode</h3><p>Disassemble to reassemblable text and serialize to a compact blob, both proven lossless round trips.</p></div>
+  </div>
 </div></section>
 
 <section class="narrative" id="use"><div class="wrap">
   <h2>Use it</h2>
+  <p class="lead">Three ways in: the command line tool, the crate API, and the correctness gate you can run yourself.</p>
+  <div class="prows">
+    <div class="r"><b>CLI</b><p><code>kindling run</code> compiles and executes a program, <code>kindling disasm</code> prints the compiled bytecode, and <code>kindling repl</code> starts an interactive session.</p></div>
+    <div class="r"><b>Library API</b><p><code>run_source</code> and <code>compile_source</code> drive the pipeline, <code>run_program</code> executes a compiled program, <code>eval_reference</code> runs the independent interpreter, and <code>disassemble</code> / <code>assemble</code> plus <code>serialize</code> / <code>deserialize</code> move bytecode to text or bytes and back.</p></div>
+    <div class="r"><b>Correctness gates</b><p>Differential testing, round trip integrity, and garbage collector correctness all run as tests, with the fuzzing workload scaled by <code>KINDLING_FUZZ_OPS</code>.</p></div>
+  </div>
   <pre><span class="cm"># build the runtime and CLI (pure Rust, zero dependencies)</span>
 cargo build --release
 
