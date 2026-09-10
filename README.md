@@ -6,6 +6,8 @@ Kindling is a small, from-scratch, dynamically typed programming language with a
 
 **[Live demo](https://pavanchow.github.io/kindling/)** · MIT licensed · pure Rust, zero dependencies
 
+Built from scratch by [Pavan Nallamothu](https://pavanchow.github.io/) ([LinkedIn](https://www.linkedin.com/in/pavanchow/), [GitHub](https://github.com/pavanchow)).
+
 The playground shows the whole pipeline, source to tokens to AST to bytecode to a running VM, and lets you step one instruction at a time while watching the value stack, the call frames, and the garbage collector.
 
 ## What it is
